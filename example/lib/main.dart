@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:offline_sync_kit/offline_sync_kit.dart';
 import 'models/todo.dart';
 import 'models/encryption_manager.dart';
+import 'helpers/storage_helper.dart';
 import 'screens/home_screen.dart';
 
 void main() async {
@@ -20,14 +21,12 @@ Future<void> initSyncManager() async {
   // Put your API address here in a real application
   const baseUrl = 'https://jsonplaceholder.typicode.com';
 
-  // WebSocket server URL (replace with your actual WebSocket server URL)
-  // const wsUrl = 'wss://your-websocket-server.com/socket';
-
-  final storageService = StorageServiceImpl();
-  await storageService.initialize();
+  // Platform bağımsız storage servisi oluştur
+  final storageService =
+      await StorageHelper.createPlatformAwareStorageService();
 
   // Register model factory
-  (storageService).registerModelDeserializer<Todo>(
+  (storageService as StorageServiceImpl).registerModelDeserializer<Todo>(
     'todo',
     (json) => Todo.fromJson(json),
   );

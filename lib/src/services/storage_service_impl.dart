@@ -16,13 +16,20 @@ class StorageServiceImpl implements StorageService {
   final Map<String, Function> _modelDeserializers = {};
 
   @override
-  Future<void> initialize() async {
+  Future<void> initialize({
+    String? directory,
+    DatabaseFactory? databaseFactoryCustom,
+  }) async {
     if (_db != null) return;
 
-    final documentsDirectory = await getApplicationDocumentsDirectory();
-    final path = join(documentsDirectory.path, _dbName);
-
-    _db = await openDatabase(path, version: _dbVersion, onCreate: _createDb);
+    final documentsDirectory =
+        directory ?? (await getApplicationDocumentsDirectory()).path;
+    final path = join(documentsDirectory, _dbName);
+    databaseFactoryCustom ??= databaseFactory;
+    _db = await databaseFactoryCustom.openDatabase(
+      path,
+      options: OpenDatabaseOptions(version: _dbVersion, onCreate: _createDb),
+    );
   }
 
   Future<void> _createDb(Database db, int version) async {
