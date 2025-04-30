@@ -1,78 +1,81 @@
-# Değişiklik Günlüğü
-
 ## 1.4.0
 
-### WebSocket Desteği ve Gerçek Zamanlı Senkronizasyon
-- **WebSocketConnectionManager** eklendi - WebSocket bağlantı yaşam döngüsünü, yeniden bağlanma denemelerini ve durum bildirimlerini yönetir
-- **WebSocketNetworkClient** eklendi - Http tabanlı ağ istemcisinin yanında WebSocket tabanlı alternatif sağlar
-- **WebSocketConfig** eklendi - WebSocket davranışı için kapsamlı yapılandırma seçenekleri
-- **SyncEventMapper** sınıfı eklendi - WebSocket olay adlarını ve SyncEventType numaralandırmasını eşler
-- Abonelikler ve kanal dinleme için pub/sub mesajlaşma sistemi
+* WebSocket Support and Real-Time Synchronization:
+  * Added **WebSocketConnectionManager** - Manages WebSocket connection lifecycle, reconnection attempts, and status notifications
+  * Added **WebSocketNetworkClient** - Provides WebSocket-based alternative alongside Http-based network client
+  * Added **WebSocketConfig** - Comprehensive configuration options for WebSocket behavior
+  * Added **SyncEventMapper** class - Maps WebSocket event names and SyncEventType enumeration
+  * Pub/sub messaging system for subscriptions and channel listening
 
-### Özelleştirme Geliştirmeleri
-- Özelleştirilebilir mesaj formatı için birden çok mesaj formatlayıcı desteği
-- Bağlantı yaşam döngüsü yönetimi ve durum izleme için gelişmiş kancalar
-- WebSocket bağlantı işleme için genişletilebilir davranış
-- Özelleştirilebilir ping/pong mesajları
+* Customization Enhancements:
+  * Support for multiple message formatters for customizable message format
+  * Advanced hooks for connection lifecycle management and status monitoring
+  * Extensible behavior for WebSocket connection handling
+  * Customizable ping/pong messages
 
-### Olay Sistemi İyileştirmeleri
-- Senkronizasyon olaylarını izlemek ve dinlemek için genişletilmiş SyncEventType
-- İstemci tarafı olay filtreleme ve dönüştürme yetenekleri
-- Olay dinleyiciler ve akış oluşturma için gelişmiş destek
+* Event System Improvements:
+  * Extended SyncEventType for tracking and listening to synchronization events
+  * Client-side event filtering and transformation capabilities
+  * Enhanced support for event listeners and stream creation
 
 ## 1.3.0
 
-### Özel Depo Desteği
-- Depolama Yardımcı Programları - Özel depo sınıflarını kaydetmek ve kullanmak için yeni API'ler
-- UUID Yardımcı Programları - Model tanımlayıcıları oluşturmak için yeni dahili UUID desteği
-- Model Fabrikası Geliştirmeleri - Her model türü için tür güvenli fabrika işlevleri 
-
-### Model Fabrikası İşleme
-- Model fabrikası kodlaması ve çözme için geliştirilmiş destek
-- Seri hale getirilmiş modelleri JSON'dan geri yüklemek için daha iyi doğrulama
-- Model oluşturmada çeşitli türler için genişletilmiş destek
-
-### Delta Senkronizasyon İyileştirmeleri
-- Delta hesaplama için optimize edilmiş algoritma
-- Yalnızca değişen alanları göndermek için ince ayarlanmış senkronizasyon motoru
-- Değiştirilmiş alanları izlemek için iyileştirilmiş yöntemler
+* Custom repository support:
+  * Added customRepository parameter to OfflineSyncManager.initialize()
+  * Repository can now be accessed via new getter in SyncEngine
+  * Improved syncItemDelta to better support custom implementations
+* Model factory handling:
+  * fetchItems and pullFromServer now correctly use registered model factories
+  * Fixed issue where modelFactories was null in custom repositories
+  * modelFactories are now passed into fetchItems from pullFromServer
+* Delta sync improvements:
+  * SyncModel.toJsonDelta() made more reliable and consistent
+* Error handling improvements:
+  * Better handling of invalid or unexpected API responses
+  * Safer defaults applied when responses are incomplete
 
 ## 1.2.0
 
-### Çift Yönlü Senkronizasyon
-- Sunucudan yerel modelleri güncellemek için sağlam iki yönlü senkronizasyon
-- Sunucudan yeni verileri kontrol etmek için akıllı zaman damgası işleme
-- Sunucu değişikliklerini yerel modellere entegre etmek için çakışma çözümü
-
-### Performans İyileştirmeleri
-- Daha hızlı veri senkronizasyonu için toplu senkronizasyon desteği
-- Daha verimli aktarım için optimize edilmiş ağ istekleri
-- İyileştirilmiş yerel veritabanı sorguları
-
-### Hata İşleme Geliştirmeleri
-- Daha iyi tanılar için daha ayrıntılı hata mesajları
-- Geri yükleme mekanizmaları
-- API istisnaları için gelişmiş işleme
+* Added github address to pubspec.yaml file.
+* Readme file updated.
 
 ## 1.1.0
 
-### Gelişmiş Yapılandırma
-- Senkronizasyon aralıkları, stratejileri ve davranışı için özelleştirilebilir seçenekler
-- Çakışma çözümü için genişletilebilir çerçeve
-- Senkronizasyon davranışını özelleştirmek için olay dinleyicileri
-
-### Şifreleme Desteği
-- Yerel olarak depolanan veriler için seçimli şifreleme
-- Yapılandırılabilir şifreleme anahtarları
-- Güvenlik mekanizmaları
+* Advanced conflict resolution strategies:
+  * Server-wins, client-wins, last-update-wins policies
+  * Custom conflict resolution handler support
+  * Conflict detection and reporting
+* Delta synchronization:
+  * Optimized syncing of changed fields only
+  * Automatic tracking of field-level changes
+  * Reduced network bandwidth usage
+* Optional data encryption:
+  * Secure storage of sensitive information
+  * Configurable encryption keys
+  * Transparent encryption/decryption process
+* Performance optimizations:
+  * Batched synchronization support
+  * Prioritized sync queue management
+  * Enhanced offline processing
+* Extended configuration options:
+  * Flexible synchronization intervals
+  * Custom batch size settings
+  * Bidirectional sync controls
 
 ## 1.0.0
 
-### İlk Sürüm
-- Açık/Kapalı durumlarında çalışan model ile çevrimdışı veri senkronizasyonu
-- SQLite tabanlı yerel veritabanı depolama
-- Otomatik senkronizasyon yönetimi
-- Temel çakışma yönetimi
-- REST API entegrasyonu
-- Bağlantı izleme
-- Yalnızca değiştirilen verileri senkronize etme özelliği
+* Initial official release
+* Core features:
+  * Flexible data model integration based on SyncModel
+  * Offline data storage with local database
+  * Automatic data synchronization
+  * Internet connectivity monitoring
+  * Synchronization status tracking
+  * Exponential backoff retry mechanism
+  * Bidirectional synchronization support
+  * Data conflict management
+  * Customizable API integration
+* Example application demonstrating usage
+* SQLite-based StorageServiceImpl implementation
+* HTTP-based DefaultNetworkClient implementation
+* Comprehensive documentation

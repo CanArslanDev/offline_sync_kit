@@ -117,7 +117,7 @@ class Todo extends SyncModel {
     );
   }
 
-  // Yardımcı metotlar - delta senkronizasyon için alanları değiştirme
+  // Helper methods - change fields for delta synchronization
   Todo updateTitle(String newTitle) {
     return copyWith(
       title: newTitle,

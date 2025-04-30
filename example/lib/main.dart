@@ -21,7 +21,7 @@ Future<void> initSyncManager() async {
   // Put your API address here in a real application
   const baseUrl = 'https://jsonplaceholder.typicode.com';
 
-  // Platform bağımsız storage servisi oluştur
+  // Create platform-independent storage service
   final storageService =
       await StorageHelper.createPlatformAwareStorageService();
 

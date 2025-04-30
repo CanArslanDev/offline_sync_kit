@@ -4,14 +4,14 @@ import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:offline_sync_kit/offline_sync_kit.dart';
 
-/// Windows platformunu da destekleyen bir yardımcı sınıf
+/// A helper class that supports Windows platform
 class StorageHelper {
-  /// Platformlara göre doğru SQLite ayarlarını yapar
+  /// Configures the correct SQLite settings for different platforms
   static Future<void> initializeSqlite() async {
     if (Platform.isWindows || Platform.isLinux) {
-      // FFI SQLite'ı başlat
+      // Initialize SQLite FFI
       sqfliteFfiInit();
-      // FFI veritabanı factory'sini ayarla
+      // Set FFI database factory
       databaseFactory = databaseFactoryFfi;
       debugPrint('SQLite FFI initialized for ${Platform.operatingSystem}');
     } else {
@@ -19,12 +19,12 @@ class StorageHelper {
     }
   }
 
-  /// Windows platformu için StorageServiceImpl sınıfını genişleten bir sınıf oluştur
+  /// Creates a StorageServiceImpl class extended for Windows platform
   static Future<StorageService> createPlatformAwareStorageService() async {
-    // Önce SQLite'ı başlat
+    // Initialize SQLite first
     await initializeSqlite();
 
-    // StorageServiceImpl'i döndür - artık tüm platformlarda çalışacak
+    // Return StorageServiceImpl - now it will work on all platforms
     final storageService = StorageServiceImpl();
     await storageService.initialize();
 
