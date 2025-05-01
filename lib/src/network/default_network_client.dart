@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'network_client.dart';
+import 'rest_request.dart';
 
 typedef EncryptionHandler =
     Map<String, dynamic> Function(Map<String, dynamic> data);
@@ -58,16 +60,41 @@ class DefaultNetworkClient implements NetworkClient {
   /// Parameters:
   /// - [endpoint]: The API endpoint
   /// - [queryParams]: Optional query parameters to include in the URL
+  /// - [requestConfig]: Optional request configuration with URL parameters
   ///
   /// Returns the full URL as a string
-  String _buildUrl(String endpoint, [Map<String, dynamic>? queryParams]) {
-    final cleanEndpoint =
-        endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
-    final cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl : '$baseUrl/';
-    final uri = Uri.parse('$cleanBaseUrl$cleanEndpoint');
+  String _buildUrl(
+    String endpoint, [
+    Map<String, dynamic>? queryParams,
+    RestRequest? requestConfig,
+  ]) {
+    String finalEndpoint = endpoint;
+    String finalUrl;
 
+    // If we have a requestConfig with a URL, use that instead of building one
+    if (requestConfig != null && requestConfig.url.isNotEmpty) {
+      // Process URL parameters if any
+      finalUrl = requestConfig.getProcessedUrl();
+
+      // Handle relative vs absolute URLs
+      if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+        final cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl : '$baseUrl/';
+        finalUrl =
+            finalUrl.startsWith('/')
+                ? '${cleanBaseUrl}${finalUrl.substring(1)}'
+                : '$cleanBaseUrl$finalUrl';
+      }
+    } else {
+      // Use default URL building logic
+      final cleanEndpoint =
+          endpoint.startsWith('/') ? endpoint.substring(1) : endpoint;
+      final cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl : '$baseUrl/';
+      finalUrl = '$cleanBaseUrl$cleanEndpoint';
+    }
+
+    // Add query parameters if any
     if (queryParams == null || queryParams.isEmpty) {
-      return uri.toString();
+      return finalUrl;
     }
 
     final queryString = queryParams.entries
@@ -77,7 +104,65 @@ class DefaultNetworkClient implements NetworkClient {
         )
         .join('&');
 
-    return '$uri${uri.toString().contains('?') ? '&' : '?'}$queryString';
+    return '$finalUrl${finalUrl.contains('?') ? '&' : '?'}$queryString';
+  }
+
+  /// Processes the request body using a RestRequest configuration
+  ///
+  /// This applies any transformations specified in the RestRequest:
+  /// - Wraps the body in a topLevelKey if specified
+  /// - Adds supplemental top-level data if specified
+  ///
+  /// Parameters:
+  /// - [body]: The original request body
+  /// - [request]: RestRequest configuration to apply
+  ///
+  /// Returns the transformed request body
+  Map<String, dynamic>? _processRequestBody(
+    Map<String, dynamic>? body,
+    RestRequest? request,
+  ) {
+    if (body == null) {
+      return request?.supplementalTopLevelData;
+    }
+
+    Map<String, dynamic> processedBody;
+
+    // Wrap the body in topLevelKey if specified
+    if (request?.topLevelKey != null) {
+      processedBody = {request!.topLevelKey!: body};
+    } else {
+      processedBody = Map<String, dynamic>.from(body);
+    }
+
+    // Add supplemental top-level data if provided
+    if (request?.supplementalTopLevelData != null) {
+      processedBody.addAll(request!.supplementalTopLevelData!);
+    }
+
+    return processedBody;
+  }
+
+  /// Processes the response data using a RestRequest configuration
+  ///
+  /// This extracts data from the specified responseDataKey if provided
+  ///
+  /// Parameters:
+  /// - [data]: The original response data
+  /// - [request]: RestRequest configuration to apply
+  ///
+  /// Returns the processed response data
+  dynamic _processResponseData(dynamic data, RestRequest? request) {
+    if (data == null || request?.responseDataKey == null) {
+      return data;
+    }
+
+    if (data is Map<String, dynamic> &&
+        data.containsKey(request!.responseDataKey!)) {
+      return data[request.responseDataKey!];
+    }
+
+    return data;
   }
 
   /// Sends a GET request to the specified endpoint
@@ -86,6 +171,7 @@ class DefaultNetworkClient implements NetworkClient {
   /// - [endpoint]: The API endpoint
   /// - [queryParameters]: Optional query parameters to include in the URL
   /// - [headers]: Optional headers to include in the request
+  /// - [requestConfig]: Optional custom request configuration
   ///
   /// Returns a [NetworkResponse] with the result of the request
   @override
@@ -93,19 +179,58 @@ class DefaultNetworkClient implements NetworkClient {
     String endpoint, {
     Map<String, dynamic>? queryParameters,
     Map<String, String>? headers,
+    RestRequest? requestConfig,
   }) async {
-    final url = _buildUrl(endpoint, queryParameters);
-    final response = await _client.get(
-      Uri.parse(url),
-      headers: {..._defaultHeaders, ...?headers},
-    );
+    final url = _buildUrl(endpoint, queryParameters, requestConfig);
 
-    final data = _parseResponseBody(response);
-    return NetworkResponse(
-      statusCode: response.statusCode,
-      data: data,
-      headers: response.headers,
-    );
+    // Apply timeout if specified
+    final timeout =
+        requestConfig?.timeoutMillis != null
+            ? Duration(milliseconds: requestConfig!.timeoutMillis!)
+            : null;
+
+    // Handle retries if configured
+    int attemptCount = 0;
+    final maxAttempts = (requestConfig?.retryCount ?? 0) + 1;
+
+    while (true) {
+      attemptCount++;
+      try {
+        final response = await _client
+            .get(
+              Uri.parse(url),
+              headers: {
+                ..._defaultHeaders,
+                ...?headers,
+                ...?requestConfig?.headers,
+              },
+            )
+            .timeout(timeout ?? const Duration(seconds: 30));
+
+        final rawData = _parseResponseBody(response);
+
+        // First process via basic response data handling
+        var processedData = _processResponseData(rawData, requestConfig);
+
+        // Then apply custom transformer if available
+        if (requestConfig != null) {
+          processedData = requestConfig.transformResponse(processedData);
+        }
+
+        return NetworkResponse(
+          statusCode: response.statusCode,
+          data: processedData,
+          headers: response.headers,
+        );
+      } catch (e) {
+        // If we have retries left and this is a retryable error, try again
+        if (attemptCount < maxAttempts) {
+          continue;
+        }
+        // Otherwise, rethrow
+        rethrow;
+      }
+    }
   }
 
   /// Sends a POST request to the specified endpoint
@@ -114,6 +239,7 @@ class DefaultNetworkClient implements NetworkClient {
   /// - [endpoint]: The API endpoint
   /// - [body]: Optional request body as a map
   /// - [headers]: Optional headers to include in the request
+  /// - [requestConfig]: Optional custom request configuration
   ///
   /// Returns a [NetworkResponse] with the result of the request
   @override
@@ -121,17 +247,24 @@ class DefaultNetworkClient implements NetworkClient {
     String endpoint, {
     Map<String, dynamic>? body,
     Map<String, String>? headers,
+    RestRequest? requestConfig,
   }) async {
-    final url = _buildUrl(endpoint);
-    final bodyJson = body != null ? jsonEncode(_encryptIfEnabled(body)) : null;
+    final url = requestConfig?.url ?? _buildUrl(endpoint);
+    final processedBody = _processRequestBody(body, requestConfig);
+    final bodyJson =
+        processedBody != null
+            ? jsonEncode(_encryptIfEnabled(processedBody))
+            : null;
 
     final response = await _client.post(
       Uri.parse(url),
-      headers: {..._defaultHeaders, ...?headers},
+      headers: {..._defaultHeaders, ...?headers, ...?requestConfig?.headers},
       body: bodyJson,
     );
 
-    final data = _parseResponseBody(response);
+    final rawData = _parseResponseBody(response);
+    final data = _processResponseData(rawData, requestConfig);
+
     return NetworkResponse(
       statusCode: response.statusCode,
       data: data,
@@ -145,6 +278,7 @@ class DefaultNetworkClient implements NetworkClient {
   /// - [endpoint]: The API endpoint
   /// - [body]: Optional request body as a map
   /// - [headers]: Optional headers to include in the request
+  /// - [requestConfig]: Optional custom request configuration
   ///
   /// Returns a [NetworkResponse] with the result of the request
   @override
@@ -152,17 +286,24 @@ class DefaultNetworkClient implements NetworkClient {
     String endpoint, {
     Map<String, dynamic>? body,
     Map<String, String>? headers,
+    RestRequest? requestConfig,
   }) async {
-    final url = _buildUrl(endpoint);
-    final bodyJson = body != null ? jsonEncode(_encryptIfEnabled(body)) : null;
+    final url = requestConfig?.url ?? _buildUrl(endpoint);
+    final processedBody = _processRequestBody(body, requestConfig);
+    final bodyJson =
+        processedBody != null
+            ? jsonEncode(_encryptIfEnabled(processedBody))
+            : null;
 
     final response = await _client.put(
       Uri.parse(url),
-      headers: {..._defaultHeaders, ...?headers},
+      headers: {..._defaultHeaders, ...?headers, ...?requestConfig?.headers},
       body: bodyJson,
     );
 
-    final data = _parseResponseBody(response);
+    final rawData = _parseResponseBody(response);
+    final data = _processResponseData(rawData, requestConfig);
+
     return NetworkResponse(
       statusCode: response.statusCode,
       data: data,
@@ -176,23 +317,32 @@ class DefaultNetworkClient implements NetworkClient {
   /// - [endpoint]: The API endpoint
   /// - [body]: Optional request body as a map
   /// - [headers]: Optional headers to include in the request
+  /// - [requestConfig]: Optional custom request configuration
   ///
   /// Returns a [NetworkResponse] with the result of the request
+  @override
   Future<NetworkResponse> patch(
     String endpoint, {
     Map<String, dynamic>? body,
     Map<String, String>? headers,
+    RestRequest? requestConfig,
   }) async {
-    final url = _buildUrl(endpoint);
-    final bodyJson = body != null ? jsonEncode(_encryptIfEnabled(body)) : null;
+    final url = requestConfig?.url ?? _buildUrl(endpoint);
+    final processedBody = _processRequestBody(body, requestConfig);
+    final bodyJson =
+        processedBody != null
+            ? jsonEncode(_encryptIfEnabled(processedBody))
+            : null;
 
     final response = await _client.patch(
       Uri.parse(url),
-      headers: {..._defaultHeaders, ...?headers},
+      headers: {..._defaultHeaders, ...?headers, ...?requestConfig?.headers},
       body: bodyJson,
     );
 
-    final data = _parseResponseBody(response);
+    final rawData = _parseResponseBody(response);
+    final data = _processResponseData(rawData, requestConfig);
+
     return NetworkResponse(
       statusCode: response.statusCode,
       data: data,
@@ -205,20 +355,24 @@ class DefaultNetworkClient implements NetworkClient {
   /// Parameters:
   /// - [endpoint]: The API endpoint
   /// - [headers]: Optional headers to include in the request
+  /// - [requestConfig]: Optional custom request configuration
   ///
   /// Returns a [NetworkResponse] with the result of the request
   @override
   Future<NetworkResponse> delete(
     String endpoint, {
     Map<String, String>? headers,
+    RestRequest? requestConfig,
   }) async {
-    final url = _buildUrl(endpoint);
+    final url = requestConfig?.url ?? _buildUrl(endpoint);
     final response = await _client.delete(
       Uri.parse(url),
-      headers: {..._defaultHeaders, ...?headers},
+      headers: {..._defaultHeaders, ...?headers, ...?requestConfig?.headers},
     );
 
-    final data = _parseResponseBody(response);
+    final rawData = _parseResponseBody(response);
+    final data = _processResponseData(rawData, requestConfig);
+
     return NetworkResponse(
       statusCode: response.statusCode,
       data: data,
@@ -241,7 +395,7 @@ class DefaultNetworkClient implements NetworkClient {
       final jsonData = jsonDecode(response.body);
 
       // Apply decryption if needed
-      if (jsonData is Map<String, dynamic>) {
+      if (jsonData is Map<String, dynamic> && _decryptionHandler != null) {
         return _decryptIfNeeded(jsonData);
       }
       return jsonData;

@@ -4,6 +4,7 @@ import '../models/sync_event.dart';
 import '../models/sync_event_mapper.dart';
 import '../models/websocket_config.dart';
 import 'network_client.dart';
+import 'rest_request.dart';
 import 'websocket_connection_manager.dart';
 
 /// Network client that operates over WebSocket protocol.
@@ -248,6 +249,7 @@ class WebSocketNetworkClient implements NetworkClient {
     String endpoint, {
     Map<String, String>? headers,
     Map<String, dynamic>? queryParameters,
+    RestRequest? requestConfig,
   }) {
     return _sendRequest(
       method: 'GET',
@@ -262,6 +264,7 @@ class WebSocketNetworkClient implements NetworkClient {
     String endpoint, {
     Map<String, dynamic>? body,
     Map<String, String>? headers,
+    RestRequest? requestConfig,
   }) {
     return _sendRequest(
       method: 'POST',
@@ -276,6 +279,7 @@ class WebSocketNetworkClient implements NetworkClient {
     String endpoint, {
     Map<String, dynamic>? body,
     Map<String, String>? headers,
+    RestRequest? requestConfig,
   }) {
     return _sendRequest(
       method: 'PUT',
@@ -289,15 +293,18 @@ class WebSocketNetworkClient implements NetworkClient {
   Future<NetworkResponse> delete(
     String endpoint, {
     Map<String, String>? headers,
+    RestRequest? requestConfig,
   }) {
     return _sendRequest(method: 'DELETE', endpoint: endpoint, headers: headers);
   }
 
   /// Sends a PATCH request
+  @override
   Future<NetworkResponse> patch(
     String endpoint, {
     Map<String, dynamic>? body,
     Map<String, String>? headers,
+    RestRequest? requestConfig,
   }) {
     return _sendRequest(
       method: 'PATCH',

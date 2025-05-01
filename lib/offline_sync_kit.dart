@@ -20,6 +20,9 @@ export 'src/network/network_client.dart';
 export 'src/network/default_network_client.dart';
 export 'src/network/websocket_connection_manager.dart';
 export 'src/network/websocket_network_client.dart';
+export 'src/network/rest_request.dart';
+export 'src/network/rest_requests.dart';
+export 'src/enums/rest_method.dart';
 
 export 'src/sync_engine.dart';
 export 'src/offline_sync_manager.dart';

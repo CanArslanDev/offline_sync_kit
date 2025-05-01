@@ -1,6 +1,7 @@
 import 'dart:async';
 import '../models/sync_model.dart';
 import '../models/sync_result.dart';
+import '../network/rest_request.dart';
 
 abstract class SyncRepository {
   Future<SyncResult> syncItem<T extends SyncModel>(T item);
@@ -31,9 +32,29 @@ abstract class SyncRepository {
     Map<String, dynamic Function(Map<String, dynamic>)>? modelFactories,
   });
 
-  Future<T?> createItem<T extends SyncModel>(T item);
+  /// Creates a new item on the server
+  ///
+  /// Parameters:
+  /// - [item]: The model to create
+  /// - [requestConfig]: Optional custom request configuration
+  ///
+  /// Returns the created model with updated sync status or null if failed
+  Future<T?> createItem<T extends SyncModel>(
+    T item, {
+    RestRequest? requestConfig,
+  });
 
-  Future<T?> updateItem<T extends SyncModel>(T item);
+  /// Updates an existing item on the server
+  ///
+  /// Parameters:
+  /// - [item]: The model to update
+  /// - [requestConfig]: Optional custom request configuration
+  ///
+  /// Returns the updated model with sync status or null if failed
+  Future<T?> updateItem<T extends SyncModel>(
+    T item, {
+    RestRequest? requestConfig,
+  });
 
   Future<bool> deleteItem<T extends SyncModel>(T item);
 

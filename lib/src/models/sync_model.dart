@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:uuid/uuid.dart';
+import '../network/rest_requests.dart';
 
 /// Base abstract class for all models that need offline synchronization.
 ///
@@ -110,6 +111,12 @@ abstract class SyncModel extends Equatable {
   /// This is used to identify different model types in storage
   /// For example: 'todo', 'user', 'product'
   String get modelType;
+
+  /// Optional custom REST request configurations for this model
+  ///
+  /// Override this to provide custom request shaping for different APIs
+  /// By default, returns null to use standard request formatting
+  RestRequests? get restRequests => null;
 
   /// Converts the model to a JSON map for API requests and storage
   Map<String, dynamic> toJson();
