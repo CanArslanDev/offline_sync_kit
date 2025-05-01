@@ -102,14 +102,12 @@ class Todo extends SyncModel {
       description: json['description'] as String? ?? '',
       isCompleted: json['isCompleted'] as bool? ?? false,
       priority: json['priority'] as int? ?? 1,
-      createdAt:
-          json['createdAt'] != null
-              ? DateTime.parse(json['createdAt'] as String)
-              : null,
-      updatedAt:
-          json['updatedAt'] != null
-              ? DateTime.parse(json['updatedAt'] as String)
-              : null,
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : null,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.parse(json['updatedAt'] as String)
+          : null,
       isSynced: json['isSynced'] as bool? ?? false,
       syncError: json['syncError'] as String? ?? '',
       syncAttempts: json['syncAttempts'] as int? ?? 0,

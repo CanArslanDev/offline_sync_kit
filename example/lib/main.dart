@@ -161,10 +161,9 @@ Future<void> initSyncManager() async {
     storageService: storageService,
     syncOptions: syncOptions,
     enableEncryption: isEncryptionEnabled, // Use value from EncryptionManager
-    encryptionKey:
-        isEncryptionEnabled
-            ? 'secure-key-here'
-            : null, // Only provide key if enabled
+    encryptionKey: isEncryptionEnabled
+        ? 'secure-key-here'
+        : null, // Only provide key if enabled
   );
 
   // Register Todo model with OfflineSyncManager
