@@ -110,6 +110,55 @@ class StorageServiceImpl implements StorageService {
   }
 
   @override
+  Future<List<T>> getItems<T extends SyncModel>(
+    String modelType, {
+    Map<String, dynamic>? query,
+  }) async {
+    await initialize();
+
+    // For simplicity in the initial implementation, just get all items of the model type
+    // The JSON query filtering would require more sophisticated implementation
+    final result = await _db!.query(
+      _syncTable,
+      where: 'model_type = ?',
+      whereArgs: [modelType],
+    );
+
+    // If there's no additional filtering needed, return all items
+    if (query == null || query.isEmpty) {
+      return result.map<T>((row) => _deserializeModel<T>(row)!).toList();
+    }
+
+    // Deserialize all items first
+    final allItems =
+        result.map<T>((row) => _deserializeModel<T>(row)!).toList();
+
+    // Then filter them in memory based on the query parameters
+    return allItems.where((item) {
+      final itemJson = item.toJson();
+
+      // Check if all query parameters match
+      return query.entries.every((entry) {
+        final key = entry.key;
+        final value = entry.value;
+
+        // Skip null values
+        if (value == null) return true;
+
+        // Make sure the item has this field
+        if (!itemJson.containsKey(key)) return false;
+
+        // Check if values match
+        if (value is List) {
+          return value.contains(itemJson[key]);
+        } else {
+          return itemJson[key] == value;
+        }
+      });
+    }).toList();
+  }
+
+  @override
   Future<void> save<T extends SyncModel>(T model) async {
     await initialize();
 
@@ -158,6 +207,11 @@ class StorageServiceImpl implements StorageService {
       where: 'id = ? AND model_type = ?',
       whereArgs: [id, modelType],
     );
+  }
+
+  @override
+  Future<void> deleteModel<T extends SyncModel>(T model) async {
+    await delete<T>(model.id, model.modelType);
   }
 
   @override

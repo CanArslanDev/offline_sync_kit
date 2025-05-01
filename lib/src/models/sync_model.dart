@@ -83,6 +83,9 @@ abstract class SyncModel extends Equatable {
   /// Used for delta synchronization to only send changed fields
   final Set<String> changedFields;
 
+  /// Flag indicating whether this model is marked for deletion
+  final bool markedForDeletion;
+
   /// Creates a new SyncModel instance
   ///
   /// If [id] is not provided, a new UUID v4 will be generated
@@ -96,6 +99,7 @@ abstract class SyncModel extends Equatable {
     this.syncError = '',
     this.syncAttempts = 0,
     Set<String>? changedFields,
+    this.markedForDeletion = false,
   }) : id = id ?? const Uuid().v4(),
        createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now(),
@@ -162,6 +166,7 @@ abstract class SyncModel extends Equatable {
     String? syncError,
     int? syncAttempts,
     Set<String>? changedFields,
+    bool? markedForDeletion,
   });
 
   /// Marks this model as successfully synchronized with the server
@@ -193,6 +198,16 @@ abstract class SyncModel extends Equatable {
   /// Returns true if this model has any unsynchronized changes
   bool get hasChanges => changedFields.isNotEmpty;
 
+  /// Marks this model for deletion
+  ///
+  /// This is used when a model needs to be deleted offline and then
+  /// synchronized with the server when connectivity is restored.
+  ///
+  /// Returns a new instance with [markedForDeletion] = true
+  SyncModel markForDeletion() {
+    return copyWith(markedForDeletion: true, updatedAt: DateTime.now());
+  }
+
   @override
   List<Object?> get props => [
     id,
@@ -202,5 +217,6 @@ abstract class SyncModel extends Equatable {
     syncError,
     syncAttempts,
     changedFields,
+    markedForDeletion,
   ];
 }

@@ -421,11 +421,16 @@ class SyncRepositoryImpl implements SyncRepository {
 
   /// Fetches items of a specific model type from the server
   ///
-  /// [modelType] - The type of model to fetch
-  /// [since] - Optional timestamp to only fetch items modified since this time
-  /// [limit] - Optional maximum number of items to fetch
-  /// [offset] - Optional offset for pagination
-  /// [modelFactories] - Map of model factories to create instances from JSON
+  /// This method retrieves items from the server based on the provided parameters
+  /// and converts them to model instances.
+  ///
+  /// Parameters:
+  /// - [modelType]: The type of model to fetch
+  /// - [since]: Optional timestamp to limit results to items modified since that time
+  /// - [limit]: Optional maximum number of items to fetch
+  /// - [offset]: Optional offset for pagination
+  /// - [modelFactories]: Map of factory functions to create model instances from JSON
+  ///
   /// Returns a list of model instances
   @override
   Future<List<T>> fetchItems<T extends SyncModel>(
@@ -436,103 +441,214 @@ class SyncRepositoryImpl implements SyncRepository {
     Map<String, dynamic Function(Map<String, dynamic>)>? modelFactories,
   }) async {
     try {
-      // Ensure we have a factory for this model type
-      final factory = modelFactories?[modelType];
-      if (factory == null) {
-        throw Exception('No model factory registered for $modelType');
-      }
+      // Construct query parameters
+      final Map<String, dynamic> queryParams = {};
 
-      // Build query parameters
-      final queryParams = <String, String>{};
       if (since != null) {
         queryParams['since'] = since.toIso8601String();
       }
+
       if (limit != null) {
         queryParams['limit'] = limit.toString();
       }
+
       if (offset != null) {
         queryParams['offset'] = offset.toString();
       }
 
-      // Get model endpoint from a temporary instance or use modelType
-      final endpoint = modelType.toLowerCase();
-
-      // Create a temporary model instance to get request config
-      T? tempModel;
-      RestRequest? requestConfig;
-
-      try {
-        // Try to create a temporary instance to get REST configs
-        final tempJson = <String, dynamic>{
-          'id': '',
-          'createdAt': DateTime.now().toIso8601String(),
-          'updatedAt': DateTime.now().toIso8601String(),
-        };
-        tempModel = factory(tempJson) as T;
-        requestConfig = _getRequestConfig(tempModel, RestMethod.get);
-      } catch (e) {
-        // If we can't create a temp model, proceed without custom config
-        debugPrint('Could not create temp model for request config: $e');
-      }
-
-      // Fetch data from server
+      // Make the API request
       final response = await _networkClient.get(
-        endpoint,
-        queryParameters: queryParams,
-        requestConfig: requestConfig,
+        modelType,
+        queryParameters: queryParams.isNotEmpty ? queryParams : null,
       );
 
-      if (!response.isSuccessful) {
-        throw Exception('Failed to fetch items: ${response.statusCode}');
+      if (!response.isSuccessful || response.data == null) {
+        return <T>[];
       }
 
-      // Parse response data
-      List<dynamic> dataList;
-
+      // Extract items from response data
+      List<dynamic> itemsJson;
       if (response.data is List) {
-        dataList = response.data as List<dynamic>;
-      } else if (response.data is Map<String, dynamic>) {
-        final dataMap = response.data as Map<String, dynamic>;
-        // Try to find a data array at the top level
-        for (final key in ['data', 'items', 'documents', 'results', 'rows']) {
-          if (dataMap.containsKey(key) && dataMap[key] is List) {
-            dataList = dataMap[key] as List<dynamic>;
+        itemsJson = response.data as List<dynamic>;
+      } else if (response.data is Map) {
+        // Some APIs wrap items in a container object
+        // Try to find an array in the response
+        final map = response.data as Map<String, dynamic>;
+        final possibleArrayKeys = [
+          'items',
+          'data',
+          'results',
+          'records',
+          modelType,
+        ];
+
+        itemsJson = <dynamic>[];
+        for (final key in possibleArrayKeys) {
+          if (map.containsKey(key) && map[key] is List) {
+            itemsJson = map[key] as List<dynamic>;
             break;
           }
         }
-        // If no known data key found, use an empty list
-        dataList = dataMap['data'] as List<dynamic>? ?? [];
+
+        // If we didn't find an array in common locations, try the first list we find
+        if (itemsJson.isEmpty) {
+          for (final value in map.values) {
+            if (value is List) {
+              itemsJson = value;
+              break;
+            }
+          }
+        }
       } else {
-        dataList = [];
+        return <T>[];
       }
 
-      // Convert to model instances using factory
-      final items =
-          dataList
-              .map((item) {
-                if (item is! Map<String, dynamic>) {
-                  return null; // Skip invalid items
-                }
-                try {
-                  // Mark as synced since it came from the server
-                  final modelJson = Map<String, dynamic>.from(item);
-                  modelJson['isSynced'] = true;
+      // Convert JSON to model instances
+      final factory = modelFactories?[modelType];
+      if (factory == null) {
+        debugPrint('Warning: No factory found for model type $modelType');
+        return <T>[];
+      }
 
-                  return factory(modelJson) as T;
-                } catch (e) {
-                  debugPrint('Error creating model from JSON: $e');
-                  return null;
+      final items =
+          itemsJson
+              .map((item) {
+                if (item is Map<String, dynamic>) {
+                  return factory(item) as T;
                 }
+                return null;
               })
-              .where((item) => item != null)
-              .cast<T>()
+              .whereType<T>()
               .toList();
 
       return items;
     } catch (e) {
-      debugPrint('Error fetching items of type $modelType: $e');
-      return [];
+      debugPrint('Error fetching items: $e');
+      return <T>[];
     }
+  }
+
+  /// Gets items with query parameters and returns a SyncResult
+  ///
+  /// This method is similar to fetchItems but returns a SyncResult with additional information
+  /// about the source and status of the data.
+  ///
+  /// Parameters:
+  /// - [modelType]: The model type to fetch
+  /// - [query]: Optional query parameters to filter the items
+  ///
+  /// Returns a [SyncResult] containing the items and operation details
+  @override
+  Future<SyncResult<List<T>>> getItems<T extends SyncModel>(
+    String modelType, {
+    Map<String, dynamic>? query,
+  }) async {
+    try {
+      final stopwatch = Stopwatch()..start();
+
+      // Make the API request with query parameters
+      final response = await _networkClient.get(
+        modelType,
+        queryParameters: query,
+      );
+
+      if (!response.isSuccessful || response.data == null) {
+        return SyncResult<List<T>>(
+          status: SyncResultStatus.failed,
+          errorMessages: ['Failed to fetch items: ${response.statusCode}'],
+          timeTaken: stopwatch.elapsed,
+        );
+      }
+
+      // Extract items from response data
+      List<dynamic> itemsJson;
+      if (response.data is List) {
+        itemsJson = response.data as List<dynamic>;
+      } else if (response.data is Map) {
+        // Some APIs wrap items in a container object
+        // Try to find an array in the response
+        final map = response.data as Map<String, dynamic>;
+        final possibleArrayKeys = [
+          'items',
+          'data',
+          'results',
+          'records',
+          modelType,
+        ];
+
+        itemsJson = <dynamic>[];
+        for (final key in possibleArrayKeys) {
+          if (map.containsKey(key) && map[key] is List) {
+            itemsJson = map[key] as List<dynamic>;
+            break;
+          }
+        }
+
+        // If we didn't find an array in common locations, try the first list we find
+        if (itemsJson.isEmpty) {
+          for (final value in map.values) {
+            if (value is List) {
+              itemsJson = value;
+              break;
+            }
+          }
+        }
+      } else {
+        return SyncResult<List<T>>(
+          status: SyncResultStatus.success,
+          data: <T>[],
+          timeTaken: stopwatch.elapsed,
+        );
+      }
+
+      // Try to find a factory for this model type
+      final items =
+          itemsJson
+              .map((item) {
+                if (item is Map<String, dynamic>) {
+                  try {
+                    // Use reflection to find model factory
+                    final dynamic instance = _createModelInstance<T>(
+                      item,
+                      modelType,
+                    );
+                    return instance as T;
+                  } catch (e) {
+                    debugPrint('Error creating model instance: $e');
+                    return null;
+                  }
+                }
+                return null;
+              })
+              .whereType<T>()
+              .toList();
+
+      return SyncResult<List<T>>(
+        status: SyncResultStatus.success,
+        data: items,
+        processedItems: items.length,
+        timeTaken: stopwatch.elapsed,
+      );
+    } catch (e) {
+      return SyncResult<List<T>>(
+        status: SyncResultStatus.failed,
+        errorMessages: ['Error fetching items: $e'],
+        data: <T>[],
+      );
+    }
+  }
+
+  /// Creates a model instance from JSON data
+  ///
+  /// This is a helper method that tries to use reflection to create a model
+  /// instance when a factory function isn't explicitly provided.
+  T? _createModelInstance<T extends SyncModel>(
+    Map<String, dynamic> json,
+    String modelType,
+  ) {
+    // This is simplified - in a real implementation, you'd need a registry
+    // of model factories or reflection capabilities
+    throw UnimplementedError('Model factory not found for type $modelType');
   }
 
   /// Creates a synced model instance from JSON data

@@ -73,4 +73,19 @@ abstract class SyncRepository {
     int? offset,
     Map<String, dynamic Function(Map<String, dynamic>)>? modelFactories,
   });
+
+  /// Gets items with query parameters and returns a SyncResult
+  ///
+  /// This method is similar to fetchItems but returns a SyncResult with additional information
+  /// about the source and status of the data.
+  ///
+  /// Parameters:
+  /// - [modelType]: The model type to fetch
+  /// - [query]: Optional query parameters to filter the items
+  ///
+  /// Returns a [SyncResult] containing the items and operation details
+  Future<SyncResult<List<T>>> getItems<T extends SyncModel>(
+    String modelType, {
+    Map<String, dynamic>? query,
+  });
 }

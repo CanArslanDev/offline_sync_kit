@@ -67,6 +67,7 @@ class Todo extends SyncModel {
     String? syncError,
     int? syncAttempts,
     Set<String>? changedFields,
+    bool? markedForDeletion,
     String? title,
     String? description,
     bool? isCompleted,

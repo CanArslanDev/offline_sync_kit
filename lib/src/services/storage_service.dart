@@ -10,13 +10,29 @@ abstract class StorageService {
 
   Future<List<T>> getPending<T extends SyncModel>(String modelType);
 
+  /// Retrieve items of a specific type with optional query parameters
+  ///
+  /// Parameters:
+  /// - [modelType]: The model type to retrieve
+  /// - [query]: Optional query parameters to filter the items
+  ///
+  /// Returns a list of items matching the query
+  Future<List<T>> getItems<T extends SyncModel>(
+    String modelType, {
+    Map<String, dynamic>? query,
+  });
+
   Future<void> save<T extends SyncModel>(T model);
 
   Future<void> saveAll<T extends SyncModel>(List<T> models);
 
   Future<void> update<T extends SyncModel>(T model);
 
+  /// Delete a model by its ID and type
   Future<void> delete<T extends SyncModel>(String id, String modelType);
+
+  /// Delete a model directly using the model instance
+  Future<void> deleteModel<T extends SyncModel>(T model);
 
   Future<void> markAsSynced<T extends SyncModel>(String id, String modelType);
 

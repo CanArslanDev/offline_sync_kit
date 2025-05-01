@@ -68,7 +68,6 @@ class DefaultNetworkClient implements NetworkClient {
     Map<String, dynamic>? queryParams,
     RestRequest? requestConfig,
   ]) {
-    String finalEndpoint = endpoint;
     String finalUrl;
 
     // If we have a requestConfig with a URL, use that instead of building one
@@ -81,7 +80,7 @@ class DefaultNetworkClient implements NetworkClient {
         final cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl : '$baseUrl/';
         finalUrl =
             finalUrl.startsWith('/')
-                ? '${cleanBaseUrl}${finalUrl.substring(1)}'
+                ? '$cleanBaseUrl${finalUrl.substring(1)}'
                 : '$cleanBaseUrl$finalUrl';
       }
     } else {

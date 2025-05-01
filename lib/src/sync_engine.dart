@@ -6,6 +6,7 @@ import 'models/sync_status.dart';
 import 'repositories/sync_repository.dart';
 import 'services/connectivity_service.dart';
 import 'services/storage_service.dart';
+import 'enums/sync_strategy.dart';
 
 /// Core engine for handling the synchronization of models between local storage and remote server
 ///
@@ -134,7 +135,7 @@ class SyncEngine {
   /// - [item]: The model to synchronize
   ///
   /// Returns a [SyncResult] with details of the operation
-  Future<SyncResult> syncItem<T extends SyncModel>(T item) async {
+  Future<SyncResult<void>> syncItem<T extends SyncModel>(T item) async {
     registerModelType(item.modelType);
 
     final isConnected = await _connectivityService.isConnectionSatisfied(
@@ -144,20 +145,48 @@ class SyncEngine {
     if (!isConnected) {
       await _storageService.save(item);
       await _updatePendingCount();
-      return SyncResult.connectionError();
+      return SyncResult<void>(
+        status: SyncResultStatus.connectionError,
+        errorMessages: ['No internet connection available'],
+        source: ResultSource.offlineCache,
+      );
     }
 
     _setIsSyncing(true);
 
     try {
+      // Apply save strategy
+      if (_options.saveStrategy == SaveStrategy.optimisticSave) {
+        // Save locally first
+        await _storageService.save(item);
+      }
+
       final result = await _repository.syncItem(item);
+
+      // For waitForRemote strategy, save locally after remote success
+      if (_options.saveStrategy == SaveStrategy.waitForRemote &&
+          result.isSuccessful) {
+        await _storageService.save(item);
+      }
+
       await _updateLastSyncTime();
       await _updatePendingCount();
       _setIsSyncing(false);
-      return result;
+
+      // Convert non-generic result to generic
+      return SyncResult<void>(
+        status: result.status,
+        processedItems: result.processedItems,
+        failedItems: result.failedItems,
+        errorMessages: result.errorMessages,
+        timeTaken: result.timeTaken,
+      );
     } catch (e) {
       _setIsSyncing(false);
-      return SyncResult.failed(error: e.toString());
+      return SyncResult<void>(
+        status: SyncResultStatus.failed,
+        errorMessages: [e.toString()],
+      );
     }
   }
 
@@ -512,5 +541,179 @@ class SyncEngine {
   Future<void> updateSyncStatus() async {
     await _updatePendingCount();
     _updateStatus();
+  }
+
+  /// Fetches items from the remote provider and syncs them to local storage
+  ///
+  /// Parameters:
+  /// - [modelType]: The model type to fetch
+  /// - [query]: Optional query parameters to filter the items
+  /// - [forceRefresh]: Whether to force a refresh from the remote provider
+  ///
+  /// Returns a [SyncResult] with details of the operation
+  Future<SyncResult<List<T>>> fetchItems<T extends SyncModel>(
+    String modelType, {
+    Map<String, dynamic>? query,
+    bool forceRefresh = false,
+  }) async {
+    registerModelType(modelType);
+    final fetchStrategy = _options.fetchStrategy;
+
+    // Get local items first unless remoteFirst strategy is used
+    List<T>? localItems;
+    if (fetchStrategy != FetchStrategy.remoteFirst) {
+      localItems = await _storageService.getItems<T>(modelType, query: query);
+    }
+
+    final isConnected = await _connectivityService.isConnectionSatisfied(
+      _options.connectivityRequirement,
+    );
+
+    // Return local items only if offline or strategy is localOnly
+    if (!isConnected || fetchStrategy == FetchStrategy.localOnly) {
+      return SyncResult<List<T>>(
+        status: SyncResultStatus.success,
+        data: localItems ?? <T>[],
+        source: isConnected ? ResultSource.local : ResultSource.offlineCache,
+      );
+    }
+
+    // If using localWithRemoteFallback and we have local items, return them and sync in background
+    if (fetchStrategy == FetchStrategy.localWithRemoteFallback &&
+        localItems != null &&
+        localItems.isNotEmpty) {
+      // Start background sync if needed
+      _fetchFromRemoteAndSync(modelType, query, localItems);
+      return SyncResult<List<T>>(
+        status: SyncResultStatus.success,
+        data: localItems,
+        source: ResultSource.local,
+      );
+    }
+
+    // Otherwise fetch from remote
+    _setIsSyncing(true);
+    try {
+      final result = await _repository.getItems<T>(modelType, query: query);
+
+      if (result.isSuccessful) {
+        // Only save remote items if not using remoteFirst or we got some items
+        if (fetchStrategy != FetchStrategy.remoteFirst ||
+            (result.data != null && result.data!.isNotEmpty)) {
+          await _storageService.saveAll(result.data!);
+        }
+
+        await _updateLastSyncTime();
+      }
+
+      _setIsSyncing(false);
+      return result;
+    } catch (e) {
+      _setIsSyncing(false);
+
+      // If remote fails and we have local items, return those
+      if (localItems != null) {
+        return SyncResult<List<T>>(
+          status: SyncResultStatus.success,
+          data: localItems,
+          source: ResultSource.offlineCache,
+        );
+      }
+
+      return SyncResult<List<T>>(
+        status: SyncResultStatus.failed,
+        errorMessages: [e.toString()],
+      );
+    }
+  }
+
+  /// Helper method to fetch items in the background and sync them
+  Future<void> _fetchFromRemoteAndSync<T extends SyncModel>(
+    String modelType,
+    Map<String, dynamic>? query,
+    List<T> existingItems,
+  ) async {
+    if (_options.fetchStrategy == FetchStrategy.backgroundSync) {
+      // Only perform in background if strategy is backgroundSync
+      _repository
+          .getItems<T>(modelType, query: query)
+          .then((result) {
+            if (result.isSuccessful && result.data != null) {
+              _storageService.saveAll(result.data!);
+              _updateLastSyncTime();
+            }
+          })
+          .catchError((_) {
+            // Ignore errors in background sync
+          });
+    }
+  }
+
+  /// Deletes a model from local storage and remote provider
+  ///
+  /// Parameters:
+  /// - [item]: The model to delete
+  ///
+  /// Returns a [SyncResult] with details of the operation
+  Future<SyncResult<void>> deleteItem<T extends SyncModel>(T item) async {
+    registerModelType(item.modelType);
+
+    final isConnected = await _connectivityService.isConnectionSatisfied(
+      _options.connectivityRequirement,
+    );
+
+    // Apply delete strategy
+    if (_options.deleteStrategy == DeleteStrategy.optimisticDelete) {
+      // Delete locally first
+      await _storageService.deleteModel(item);
+    }
+
+    if (!isConnected) {
+      // Mark for deletion when we're back online
+      final markedItem = item.markForDeletion();
+      await _storageService.save(markedItem);
+      await _updatePendingCount();
+      return SyncResult<void>(
+        status: SyncResultStatus.connectionError,
+        errorMessages: ['No internet connection available'],
+        source: ResultSource.offlineCache,
+      );
+    }
+
+    _setIsSyncing(true);
+
+    try {
+      final success = await _repository.deleteItem(item);
+      final result =
+          success
+              ? SyncResult<void>(status: SyncResultStatus.success)
+              : SyncResult<void>(
+                status: SyncResultStatus.failed,
+                errorMessages: ['Failed to delete on server'],
+              );
+
+      // For waitForRemote strategy, delete locally after remote success
+      if (_options.deleteStrategy == DeleteStrategy.waitForRemote && success) {
+        await _storageService.deleteModel(item);
+      }
+
+      await _updateLastSyncTime();
+      await _updatePendingCount();
+      _setIsSyncing(false);
+      return result;
+    } catch (e) {
+      _setIsSyncing(false);
+
+      // If remote delete fails with optimisticDelete strategy, mark for deletion to try again later
+      if (_options.deleteStrategy == DeleteStrategy.optimisticDelete) {
+        final markedItem = item.markForDeletion();
+        await _storageService.save(markedItem);
+      }
+
+      return SyncResult<void>(
+        status: SyncResultStatus.failed,
+        errorMessages: [e.toString()],
+      );
+    }
   }
 }

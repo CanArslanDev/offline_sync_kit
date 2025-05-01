@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'connectivity_options.dart';
 import 'conflict_resolution_strategy.dart';
+import '../enums/sync_strategy.dart';
 
 /// Configuration options for synchronization behavior
 class SyncOptions extends Equatable {
@@ -40,6 +41,15 @@ class SyncOptions extends Equatable {
   /// Custom conflict resolver for advanced conflict resolution
   final ConflictResolver? conflictResolver;
 
+  /// Strategy to use when fetching data
+  final FetchStrategy fetchStrategy;
+
+  /// Strategy to use when deleting data
+  final DeleteStrategy deleteStrategy;
+
+  /// Strategy to use when saving data (insert/update)
+  final SaveStrategy saveStrategy;
+
   /// Creates a new set of synchronization options
   const SyncOptions({
     this.syncInterval = const Duration(minutes: 15),
@@ -54,6 +64,9 @@ class SyncOptions extends Equatable {
     this.useDeltaSync = false,
     this.conflictStrategy = ConflictResolutionStrategy.lastUpdateWins,
     this.conflictResolver,
+    this.fetchStrategy = FetchStrategy.backgroundSync,
+    this.deleteStrategy = DeleteStrategy.optimisticDelete,
+    this.saveStrategy = SaveStrategy.optimisticSave,
   });
 
   /// Creates a copy of these options with the given fields replaced with new values
@@ -70,6 +83,9 @@ class SyncOptions extends Equatable {
     bool? useDeltaSync,
     ConflictResolutionStrategy? conflictStrategy,
     ConflictResolver? conflictResolver,
+    FetchStrategy? fetchStrategy,
+    DeleteStrategy? deleteStrategy,
+    SaveStrategy? saveStrategy,
   }) {
     return SyncOptions(
       syncInterval: syncInterval ?? this.syncInterval,
@@ -85,6 +101,9 @@ class SyncOptions extends Equatable {
       useDeltaSync: useDeltaSync ?? this.useDeltaSync,
       conflictStrategy: conflictStrategy ?? this.conflictStrategy,
       conflictResolver: conflictResolver ?? this.conflictResolver,
+      fetchStrategy: fetchStrategy ?? this.fetchStrategy,
+      deleteStrategy: deleteStrategy ?? this.deleteStrategy,
+      saveStrategy: saveStrategy ?? this.saveStrategy,
     );
   }
 
@@ -102,6 +121,9 @@ class SyncOptions extends Equatable {
     useDeltaSync,
     conflictStrategy,
     conflictResolver,
+    fetchStrategy,
+    deleteStrategy,
+    saveStrategy,
   ];
 
   /// The interval in seconds for periodic synchronization
