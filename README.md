@@ -61,6 +61,12 @@ The package is built around several key components:
   - **Model Factory Access**: Built-in access to registered model factories
   - **Flexible Bidirectional Sync**: Enhanced support for fetching and pulling data from the server
   - **Robust Error Handling**: Improved handling of unexpected API responses
+  - **Customizable Synchronization Strategies** (v1.5.0+):
+    - Fine-grained control over delete operations (optimistic or wait-for-remote)
+    - Configurable data fetching strategies (background sync, remote-first, local with fallback, local-only)
+    - Customizable save operations (optimistic-local or require-remote)
+    - Generic result types for improved type safety
+    - Enhanced query capabilities with flexible parameters
 
 - **WebSocket Features**:
   - **Real-time Synchronization**: Immediate data updates via WebSocket connections
@@ -71,13 +77,22 @@ The package is built around several key components:
   - **Event Streaming**: Track and process synchronization events in real-time
   - **Compatible with REST APIs**: Use alongside or instead of traditional HTTP endpoints
 
+- **REST API Customization** (v1.6.0+):
+  - **Type-Safe Request Method**: Uses `RestMethod` enum instead of strings for method types
+  - **Dynamic URL Parameters**: Replace placeholders like `{id}` in URLs with actual values
+  - **Request Timeouts**: Configure custom timeout durations for specific request types
+  - **Automatic Retry**: Set automatic retry count for failed requests
+  - **Response Transformers**: Apply custom transformations to API responses
+  - **URL Processing**: Smart handling of relative vs absolute URLs
+  - **Enhanced Error Handling**: Better timeout and retry handling
+
 ## Installation
 
 To add the package to your project, add the following lines to your `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  offline_sync_kit: ^1.4.0
+  offline_sync_kit: ^1.6.0
 ```
 
 ## Usage
@@ -604,6 +619,108 @@ webSocketClient.registerMessageHandler(
     return true; // Return true to indicate message was handled
   },
 );
+```
+
+### 10. RestRequest Parameters
+
+The `RestRequest` class has many features that you can use to adapt to various API structures:
+
+```dart
+// Simple RestRequest example
+final getRequest = RestRequest(
+  method: RestMethod.get,
+  url: 'users',
+  headers: {'X-API-Key': 'my-api-key'},
+);
+
+// With more complex configurations
+final postRequest = RestRequest(
+  method: RestMethod.post,
+  url: 'users',
+  topLevelKey: 'data',  // Wraps data as {'data': ...}
+  supplementalTopLevelData: {'version': '1.0'}, // Adds extra top-level data
+  timeoutMillis: 10000, // Request times out after 10 seconds
+  retryCount: 3, // Retries 3 more times if it fails
+);
+
+// Example with URL parameters
+final putRequest = RestRequest(
+  method: RestMethod.put,
+  url: 'users/{userId}/profile',
+  urlParameters: {'userId': '123'}, // Processed as /users/123/profile
+);
+
+// Using with response transformer
+final getWithTransformer = RestRequest(
+  method: RestMethod.get,
+  url: 'items',
+  responseDataKey: 'results', // Extracts 'results' field from JSON response
+  responseTransformer: (data) {
+    // Apply custom transformation logic
+    if (data is List) {
+      return data.where((item) => item['active'] == true).toList();
+    }
+    return data;
+  },
+);
+```
+
+### Customizing REST Requests in SyncModel
+
+The following example shows a model that configures custom settings for different HTTP requests:
+
+```dart
+class TodoModel extends SyncModel {
+  final String title;
+  final bool isCompleted;
+  
+  TodoModel({
+    super.id,
+    required this.title,
+    this.isCompleted = false,
+  });
+  
+  @override
+  String get modelType => 'todo';
+  
+  @override
+  String get endpoint => 'todos';
+  
+  // Custom configuration for each HTTP method
+  @override
+  RestRequests? get restRequests => RestRequests(
+    // Configuration for GET requests
+    get: RestRequest(
+      method: RestMethod.get,
+      url: 'api/todos',
+      responseDataKey: 'items', // Extracts 'items' field from API response
+    ),
+    
+    // Configuration for POST requests
+    post: RestRequest(
+      method: RestMethod.post,
+      url: 'api/todos',
+      topLevelKey: 'todo', // Wraps data as {"todo": {...}}
+      retryCount: 2, // Retry for important create operations
+    ),
+    
+    // Configuration for PUT requests
+    put: RestRequest(
+      method: RestMethod.put,
+      url: 'api/todos/{id}',  // Dynamic URL parameter
+      urlParameters: {'id': id}, // Replaces ID in URL
+    ),
+    
+    // Configuration for DELETE requests
+    delete: RestRequest(
+      method: RestMethod.delete,
+      url: 'api/todos/{id}',
+      urlParameters: {'id': id},
+    ),
+  );
+  
+  // Other required methods...
+}
 ```
 
 ## Example App

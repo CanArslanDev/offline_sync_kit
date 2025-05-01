@@ -1,7 +1,7 @@
 name: offline_sync_kit
 description: A comprehensive Flutter package for offline data synchronization with remote APIs, featuring real-time WebSocket support, automatic conflict resolution, and customizable options.
-version: 1.4.0
-homepage: https://github.com/can-arslann/offline_sync_kit
+version: 1.5.0
+homepage: https://github.com/CanArslanDev/offline_sync_kit
 
 environment:
   sdk: ^3.7.0

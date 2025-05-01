@@ -1,3 +1,43 @@
+## 1.5.0
+
+- Enhanced Synchronization Strategies
+  - Added three new customizable sync strategies:
+    - `DeleteStrategy`: Control whether deletions are optimistic (local-first) or pessimistic (remote-first)
+    - `FetchStrategy`: Configure how data is retrieved (background sync, remote-first, local with fallback, or local-only)
+    - `SaveStrategy`: Manage save operations with optimistic or pessimistic approaches
+  - Implemented proper handling of marked-for-deletion items in offline mode
+  - Added generic result type support for improved type safety
+  - Enhanced query capabilities with optional parameters
+- Enhanced REST API Integration
+  - Dynamic URL parameter replacement with `urlParameters` support
+  - Request timeout customization via `timeoutMillis`
+  - Automatic retry handling with `retryCount`
+  - Custom response transformers with `responseTransformer`
+  - Added `RestRequest` and `RestRequests` classes to customize API requests and responses
+  - Support for custom request body formatting (wrapping data in top-level keys)
+  - Support for adding supplemental data to request bodies
+  - Support for extracting data from specific response fields
+- Improved type safety with `RestMethod` enum instead of string literals
+- Cross-platform support with sqflite_common_ffi
+  - Added Windows and Linux platform support via sqflite_common_ffi
+  - Created storage_helper for platform-specific SQLite initialization
+  - Ensured consistent behavior across all platforms (Android, iOS, macOS, Windows, Linux)
+- Mock API support for testing without a real server
+  - Added MockNetworkClient example for easier testing without a real API server
+  - Support for simulating API responses in offline environment
+- Internationalization improvements
+  - English translation for all Turkish comments
+  - Converted all comments to English for better international developer experience
+  - Consistent code documentation across the codebase
+- Updated example app demonstrating advanced request customization
+
+- Fixed WebSocketNetworkClient implementation to correctly implement NetworkClient interface
+- Fixed RestRequest handling in SyncRepositoryImpl
+- Fixed handling of API responses with nested data structures
+- Fixed issue with network error handling in example app
+- Improved error messages and debugging information
+- Enhanced example app with better offline capabilities
+
 ## 1.4.0
 
 * WebSocket Support and Real-Time Synchronization:
