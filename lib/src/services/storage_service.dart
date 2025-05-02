@@ -1,5 +1,6 @@
 import 'dart:async';
 import '../models/sync_model.dart';
+import '../query/query.dart';
 
 abstract class StorageService {
   Future<void> initialize();
@@ -17,9 +18,25 @@ abstract class StorageService {
   /// - [query]: Optional query parameters to filter the items
   ///
   /// Returns a list of items matching the query
+  @Deprecated('Use getItemsWithQuery instead')
   Future<List<T>> getItems<T extends SyncModel>(
     String modelType, {
     Map<String, dynamic>? query,
+  });
+
+  /// Retrieve items of a specific type with a structured Query
+  ///
+  /// This method provides a more powerful and type-safe way to query data
+  /// using the Query class which supports where conditions, ordering, and pagination.
+  ///
+  /// Parameters:
+  /// - [modelType]: The model type to retrieve
+  /// - [query]: Optional structured query to filter the items
+  ///
+  /// Returns a list of items matching the query
+  Future<List<T>> getItemsWithQuery<T extends SyncModel>(
+    String modelType, {
+    Query? query,
   });
 
   Future<void> save<T extends SyncModel>(T model);

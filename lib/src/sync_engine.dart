@@ -1,12 +1,21 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
+
+import 'enums/rest_method.dart';
+import 'enums/sync_strategy.dart';
+import 'models/connectivity_options.dart';
+import 'models/conflict_resolution_strategy.dart';
+import 'models/sync_event.dart';
 import 'models/sync_model.dart';
 import 'models/sync_options.dart';
 import 'models/sync_result.dart';
 import 'models/sync_status.dart';
+import 'network/rest_request.dart';
+import 'query/query.dart';
+import 'query/where_condition.dart';
 import 'repositories/sync_repository.dart';
 import 'services/connectivity_service.dart';
 import 'services/storage_service.dart';
-import 'enums/sync_strategy.dart';
 
 /// Core engine for handling the synchronization of models between local storage and remote server
 ///
@@ -155,8 +164,10 @@ class SyncEngine {
     _setIsSyncing(true);
 
     try {
-      // Apply save strategy
-      if (_options.saveStrategy == SaveStrategy.optimisticSave) {
+      // Apply save strategy - use model-specific strategy if available, otherwise use global
+      final saveStrategy = item.saveStrategy ?? _options.saveStrategy;
+
+      if (saveStrategy == SaveStrategy.optimisticSave) {
         // Save locally first
         await _storageService.save(item);
       }
@@ -164,8 +175,7 @@ class SyncEngine {
       final result = await _repository.syncItem(item);
 
       // For waitForRemote strategy, save locally after remote success
-      if (_options.saveStrategy == SaveStrategy.waitForRemote &&
-          result.isSuccessful) {
+      if (saveStrategy == SaveStrategy.waitForRemote && result.isSuccessful) {
         await _storageService.save(item);
       }
 
@@ -555,14 +565,27 @@ class SyncEngine {
     String modelType, {
     Map<String, dynamic>? query,
     bool forceRefresh = false,
+    FetchStrategy? modelFetchStrategy,
   }) async {
     registerModelType(modelType);
-    final fetchStrategy = _options.fetchStrategy;
+
+    // Use model-specific strategy if provided in parameter, otherwise use global
+    final fetchStrategy = modelFetchStrategy ?? _options.fetchStrategy;
 
     // Get local items first unless remoteFirst strategy is used
     List<T>? localItems;
     if (fetchStrategy != FetchStrategy.remoteFirst) {
-      localItems = await _storageService.getItems<T>(modelType, query: query);
+      // Convert Map<String, dynamic> query to Query object if necessary
+      if (query != null) {
+        // Simple conversion for basic queries
+        final structuredQuery = _mapToQuery(query);
+        localItems = await _storageService.getItemsWithQuery<T>(
+          modelType,
+          query: structuredQuery,
+        );
+      } else {
+        localItems = await _storageService.getItemsWithQuery<T>(modelType);
+      }
     }
 
     final isConnected = await _connectivityService.isConnectionSatisfied(
@@ -583,7 +606,7 @@ class SyncEngine {
         localItems != null &&
         localItems.isNotEmpty) {
       // Start background sync if needed
-      _fetchFromRemoteAndSync(modelType, query, localItems);
+      _fetchFromRemoteAndSync(modelType, query, localItems, fetchStrategy);
       return SyncResult<List<T>>(
         status: SyncResultStatus.success,
         data: localItems,
@@ -627,13 +650,45 @@ class SyncEngine {
     }
   }
 
+  /// Helper method to convert a Map query to a structured Query object
+  Query? _mapToQuery(Map<String, dynamic>? mapQuery) {
+    if (mapQuery == null || mapQuery.isEmpty) {
+      return null;
+    }
+
+    // Very basic conversion - this could be enhanced based on your query format
+    List<WhereCondition> whereConditions = [];
+
+    mapQuery.forEach((key, value) {
+      // Skip special query parameters like orderBy, limit, etc.
+      if (!['orderBy', 'descending', 'limit', 'offset'].contains(key)) {
+        // Create an exact match condition
+        whereConditions.add(WhereCondition.exact(key, value));
+      }
+    });
+
+    String? orderBy = mapQuery['orderBy'] as String?;
+    bool descending = mapQuery['descending'] as bool? ?? false;
+    int? limit = mapQuery['limit'] as int?;
+    int? offset = mapQuery['offset'] as int?;
+
+    return Query(
+      where: whereConditions.isEmpty ? null : whereConditions,
+      orderBy: orderBy,
+      descending: descending,
+      limit: limit,
+      offset: offset,
+    );
+  }
+
   /// Helper method to fetch items in the background and sync them
   Future<void> _fetchFromRemoteAndSync<T extends SyncModel>(
     String modelType,
     Map<String, dynamic>? query,
     List<T> existingItems,
+    FetchStrategy fetchStrategy,
   ) async {
-    if (_options.fetchStrategy == FetchStrategy.backgroundSync) {
+    if (fetchStrategy == FetchStrategy.backgroundSync) {
       // Only perform in background if strategy is backgroundSync
       _repository
           .getItems<T>(modelType, query: query)
@@ -662,8 +717,10 @@ class SyncEngine {
       _options.connectivityRequirement,
     );
 
-    // Apply delete strategy
-    if (_options.deleteStrategy == DeleteStrategy.optimisticDelete) {
+    // Apply delete strategy - use model-specific strategy if available, otherwise use global
+    final deleteStrategy = item.deleteStrategy ?? _options.deleteStrategy;
+
+    if (deleteStrategy == DeleteStrategy.optimisticDelete) {
       // Delete locally first
       await _storageService.deleteModel(item);
     }
@@ -693,7 +750,7 @@ class SyncEngine {
               );
 
       // For waitForRemote strategy, delete locally after remote success
-      if (_options.deleteStrategy == DeleteStrategy.waitForRemote && success) {
+      if (deleteStrategy == DeleteStrategy.waitForRemote && success) {
         await _storageService.deleteModel(item);
       }
 
@@ -705,7 +762,7 @@ class SyncEngine {
       _setIsSyncing(false);
 
       // If remote delete fails with optimisticDelete strategy, mark for deletion to try again later
-      if (_options.deleteStrategy == DeleteStrategy.optimisticDelete) {
+      if (deleteStrategy == DeleteStrategy.optimisticDelete) {
         final markedItem = item.markForDeletion();
         await _storageService.save(markedItem);
       }

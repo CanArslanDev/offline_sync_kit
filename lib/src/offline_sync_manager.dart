@@ -15,6 +15,7 @@ import 'repositories/sync_repository_impl.dart';
 import 'services/connectivity_service.dart';
 import 'services/storage_service.dart';
 import 'sync_engine.dart';
+import 'query/query.dart';
 
 /// Function type for creating model instances from JSON
 ///
@@ -484,6 +485,23 @@ class OfflineSyncManager {
   /// Returns a list of all models of the specified type
   Future<List<T>> getAllModels<T extends SyncModel>(String modelType) async {
     return _storageService.getAll<T>(modelType);
+  }
+
+  /// Retrieves models of a specific type from local storage using a structured query
+  ///
+  /// This method provides a more powerful way to filter and sort models using
+  /// the Query class which supports where conditions, ordering, and pagination.
+  ///
+  /// Parameters:
+  /// - [modelType]: The type of models to retrieve
+  /// - [query]: Optional structured query to filter the models
+  ///
+  /// Returns a list of models matching the query
+  Future<List<T>> getModelsWithQuery<T extends SyncModel>(
+    String modelType, {
+    Query? query,
+  }) async {
+    return _storageService.getItemsWithQuery<T>(modelType, query: query);
   }
 
   /// Synchronizes all pending models with the server

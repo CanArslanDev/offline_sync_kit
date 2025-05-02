@@ -28,3 +28,7 @@ export 'src/sync_engine.dart';
 export 'src/offline_sync_manager.dart';
 
 export 'src/models/conflict_resolution_strategy.dart';
+
+export 'src/query/query.dart';
+export 'src/query/where_condition.dart';
+export 'src/enums/sync_strategy.dart';

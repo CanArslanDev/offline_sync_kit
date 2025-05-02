@@ -67,28 +67,68 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      final todos = await OfflineSyncManager.instance.getAllModels<Todo>(
-        'todo',
-      );
-      setState(() {
-        _todos.clear();
-        if (_searchQuery.isEmpty) {
-          _todos.addAll(todos);
-        } else {
-          _todos.addAll(
-            todos.where(
-              (todo) =>
-                  todo.title.toLowerCase().contains(
-                    _searchQuery.toLowerCase(),
-                  ) ||
-                  todo.description.toLowerCase().contains(
-                    _searchQuery.toLowerCase(),
-                  ),
-            ),
-          );
-        }
-        _isLoading = false;
-      });
+      // Use the Query API for more powerful data retrieval
+      if (_searchQuery.isEmpty) {
+        // When no search query, we can get all todos organized by completion state
+        // First get incomplete todos with high priority first
+        final notCompletedQuery = Query(
+          where: [WhereCondition.exact('isCompleted', false)],
+          orderBy: 'priority',
+          descending: true, // High priority first
+        );
+
+        final notCompletedTodos = await OfflineSyncManager.instance
+            .getModelsWithQuery<Todo>('todo', query: notCompletedQuery);
+
+        // Then get completed todos sorted by update time
+        final completedQuery = Query(
+          where: [WhereCondition.exact('isCompleted', true)],
+          orderBy: 'updatedAt',
+          descending: true, // Most recently completed first
+        );
+
+        final completedTodos = await OfflineSyncManager.instance
+            .getModelsWithQuery<Todo>('todo', query: completedQuery);
+
+        setState(() {
+          _todos.clear();
+          _todos.addAll(notCompletedTodos);
+          _todos.addAll(completedTodos);
+          _isLoading = false;
+        });
+      } else {
+        // When searching, we need to search in both title and description
+        // First search by title
+        final titleQuery = Query(
+          where: [WhereCondition.contains('title', _searchQuery)],
+          orderBy: 'priority',
+          descending: true,
+        );
+
+        final titleResults = await OfflineSyncManager.instance
+            .getModelsWithQuery<Todo>('todo', query: titleQuery);
+
+        // Then search by description
+        final descriptionQuery = Query(
+          where: [WhereCondition.contains('description', _searchQuery)],
+          orderBy: 'priority',
+          descending: true,
+        );
+
+        final descriptionResults = await OfflineSyncManager.instance
+            .getModelsWithQuery<Todo>('todo', query: descriptionQuery);
+
+        // Combine results without duplicates
+        final Set<Todo> uniqueTodos = <Todo>{};
+        uniqueTodos.addAll(titleResults);
+        uniqueTodos.addAll(descriptionResults);
+
+        setState(() {
+          _todos.clear();
+          _todos.addAll(uniqueTodos);
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       setState(() {
         _errorMessage = 'Error loading todos: $e';
@@ -572,10 +612,9 @@ class _HomeScreenState extends State<HomeScreen> {
             title: Text(
               todo.title,
               style: TextStyle(
-                decoration:
-                    todo.isCompleted
-                        ? TextDecoration.lineThrough
-                        : TextDecoration.none,
+                decoration: todo.isCompleted
+                    ? TextDecoration.lineThrough
+                    : TextDecoration.none,
               ),
             ),
             subtitle: Column(

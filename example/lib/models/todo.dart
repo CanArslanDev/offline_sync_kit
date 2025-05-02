@@ -14,10 +14,14 @@ class Todo extends SyncModel {
     super.syncError,
     super.syncAttempts,
     super.changedFields,
+    super.markedForDeletion,
+    super.fetchStrategy,
+    super.saveStrategy,
+    super.deleteStrategy,
     required this.title,
     this.description = '',
     this.isCompleted = false,
-    this.priority = 1,
+    this.priority = 0,
   });
 
   @override
@@ -34,11 +38,8 @@ class Todo extends SyncModel {
       'description': description,
       'isCompleted': isCompleted,
       'priority': priority,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-      'isSynced': isSynced,
-      'syncError': syncError,
-      'syncAttempts': syncAttempts,
+      'createdAt': createdAt.millisecondsSinceEpoch,
+      'updatedAt': updatedAt.millisecondsSinceEpoch,
     };
   }
 
@@ -68,6 +69,9 @@ class Todo extends SyncModel {
     int? syncAttempts,
     Set<String>? changedFields,
     bool? markedForDeletion,
+    FetchStrategy? fetchStrategy,
+    SaveStrategy? saveStrategy,
+    DeleteStrategy? deleteStrategy,
     String? title,
     String? description,
     bool? isCompleted,
@@ -81,6 +85,10 @@ class Todo extends SyncModel {
       syncError: syncError ?? this.syncError,
       syncAttempts: syncAttempts ?? this.syncAttempts,
       changedFields: changedFields ?? this.changedFields,
+      markedForDeletion: markedForDeletion ?? this.markedForDeletion,
+      fetchStrategy: fetchStrategy ?? this.fetchStrategy,
+      saveStrategy: saveStrategy ?? this.saveStrategy,
+      deleteStrategy: deleteStrategy ?? this.deleteStrategy,
       title: title ?? this.title,
       description: description ?? this.description,
       isCompleted: isCompleted ?? this.isCompleted,
@@ -89,30 +97,17 @@ class Todo extends SyncModel {
   }
 
   factory Todo.fromJson(Map<String, dynamic> json) {
-    Set<String>? changedFields;
-    if (json['changedFields'] != null) {
-      final fieldsList = json['changedFields'] as List<dynamic>?;
-      if (fieldsList != null) {
-        changedFields = fieldsList.map((e) => e as String).toSet();
-      }
-    }
-
     return Todo(
-      id: json['id'] as String? ?? '',
-      title: json['title'] as String? ?? '',
+      id: json['id'] as String,
+      title: json['title'] as String,
       description: json['description'] as String? ?? '',
       isCompleted: json['isCompleted'] as bool? ?? false,
-      priority: json['priority'] as int? ?? 1,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : null,
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
-          : null,
+      priority: json['priority'] as int? ?? 0,
+      createdAt: DateTime.fromMillisecondsSinceEpoch(
+          json['createdAt'] as int? ?? DateTime.now().millisecondsSinceEpoch),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(
+          json['updatedAt'] as int? ?? DateTime.now().millisecondsSinceEpoch),
       isSynced: json['isSynced'] as bool? ?? false,
-      syncError: json['syncError'] as String? ?? '',
-      syncAttempts: json['syncAttempts'] as int? ?? 0,
-      changedFields: changedFields,
     );
   }
 
@@ -148,4 +143,158 @@ class Todo extends SyncModel {
       isSynced: false,
     );
   }
+
+  Todo markComplete() {
+    return copyWith(
+      isCompleted: true,
+      changedFields: {...changedFields, 'isCompleted'},
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  Todo markIncomplete() {
+    return copyWith(
+      isCompleted: false,
+      changedFields: {...changedFields, 'isCompleted'},
+      updatedAt: DateTime.now(),
+    );
+  }
+
+  Todo withCustomSyncStrategies({
+    FetchStrategy? fetchStrategy,
+    SaveStrategy? saveStrategy,
+    DeleteStrategy? deleteStrategy,
+  }) {
+    return copyWith(
+      fetchStrategy: fetchStrategy,
+      saveStrategy: saveStrategy,
+      deleteStrategy: deleteStrategy,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        id,
+        title,
+        description,
+        isCompleted,
+        priority,
+        createdAt,
+        updatedAt,
+        isSynced,
+        syncError,
+        syncAttempts,
+        changedFields,
+        markedForDeletion,
+        fetchStrategy,
+        saveStrategy,
+        deleteStrategy,
+      ];
 }
+
+/// Query examples:
+///
+/// 1. Simple ID-based query example:
+/// ```dart
+/// // To find a specific todo by id
+/// final query = Query.exact('id', '123');
+/// final todo = await storageService.getModel<Todo>(query);
+/// ```
+///
+/// 2. Query example with multiple conditions:
+/// ```dart
+/// // To find incomplete todos with high priority
+/// final query = Query(
+///   where: [
+///     WhereCondition.exact('isCompleted', false),
+///     WhereCondition.greaterThan('priority', 2)
+///   ],
+///   orderBy: 'priority',
+///   descending: true
+/// );
+/// final todos = await storageService.getAllModels<Todo>(query);
+/// ```
+///
+/// 3. Text search example:
+/// ```dart
+/// // To find todos containing specific text in title or description
+/// final searchQuery = 'important';
+/// final query = Query(
+///   where: [
+///     WhereCondition.contains('title', searchQuery),
+///     // To apply OR operator, you need to run multiple queries and combine results
+///   ]
+/// );
+/// final titleMatches = await storageService.getAllModels<Todo>(query);
+///
+/// // Searching in description
+/// final descriptionQuery = Query(
+///   where: [WhereCondition.contains('description', searchQuery)]
+/// );
+/// final descriptionMatches = await storageService.getAllModels<Todo>(descriptionQuery);
+///
+/// // Combine results and make unique
+/// final allMatches = {...titleMatches, ...descriptionMatches}.toList();
+/// ```
+///
+/// 4. Pagination example:
+/// ```dart
+/// // Pagination retrieving 10 todos at a time
+/// int page = 0;
+/// int pageSize = 10;
+/// 
+/// final query = Query(
+///   orderBy: 'updatedAt',
+///   descending: true,
+///   limit: pageSize,
+///   offset: page * pageSize
+/// );
+/// 
+/// // To get the next page:
+/// page++;
+/// final nextPageQuery = query.copyWith(offset: page * pageSize);
+/// ```
+///
+/// 5. Complex query example:
+/// ```dart
+/// // Get high priority, incomplete todos created in the last 7 days 
+/// // that contain "project" in the title
+/// final sevenDaysAgo = DateTime.now().subtract(Duration(days: 7));
+/// 
+/// final query = Query(
+///   where: [
+///     WhereCondition.greaterThanOrEquals('createdAt', sevenDaysAgo.millisecondsSinceEpoch),
+///     WhereCondition.exact('isCompleted', false),
+///     WhereCondition.greaterThanOrEquals('priority', 3),
+///     WhereCondition.contains('title', 'project')
+///   ],
+///   orderBy: 'priority',
+///   descending: true
+/// );
+/// 
+/// final todos = await storageService.getAllModels<Todo>(query);
+/// ```
+///
+/// 6. SQL generation example:
+/// ```dart
+/// // To generate SQL query:
+/// final query = Query(
+///   where: [
+///     WhereCondition.exact('isCompleted', false),
+///     WhereCondition.greaterThan('priority', 2)
+///   ],
+///   orderBy: 'updatedAt',
+///   descending: true,
+///   limit: 20
+/// );
+/// 
+/// final (whereClause, args) = query.toSqlWhereClause();
+/// final orderByClause = query.toSqlOrderByClause();
+/// final limitClause = query.toSqlLimitOffsetClause();
+/// 
+/// // Generated SQL parts:
+/// // whereClause: "(isCompleted = ? AND priority > ?)"
+/// // args: [false, 2]
+/// // orderByClause: "ORDER BY updatedAt DESC"
+/// // limitClause: "LIMIT 20"
+/// ```

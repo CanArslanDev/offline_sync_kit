@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' show join;
 import '../models/sync_model.dart';
+import '../query/query.dart';
 import 'storage_service.dart';
 
 class StorageServiceImpl implements StorageService {
@@ -156,6 +157,110 @@ class StorageServiceImpl implements StorageService {
         }
       });
     }).toList();
+  }
+
+  @override
+  Future<List<T>> getItemsWithQuery<T extends SyncModel>(
+    String modelType, {
+    Query? query,
+  }) async {
+    await initialize();
+
+    if (query == null) {
+      // If no query is provided, return all items of this type
+      return getAll<T>(modelType);
+    }
+
+    try {
+      // Try to use SQL-based filtering if possible
+      return await _getItemsWithSqlQuery<T>(modelType, query);
+    } catch (e) {
+      // Fallback to in-memory filtering if SQL approach fails
+      return _getItemsWithInMemoryFiltering<T>(modelType, query);
+    }
+  }
+
+  // Gets items using direct SQL queries for better performance
+  Future<List<T>> _getItemsWithSqlQuery<T extends SyncModel>(
+    String modelType,
+    Query query,
+  ) async {
+    // Base query always filters by model_type
+    String whereClause = 'model_type = ?';
+    List<dynamic> whereArgs = [modelType];
+
+    // Add query conditions if present
+    if (query.where != null && query.where!.isNotEmpty) {
+      final (queryWhereClause, queryArgs) = query.toSqlWhereClause();
+      if (queryWhereClause.isNotEmpty) {
+        whereClause += ' AND $queryWhereClause';
+        whereArgs.addAll(queryArgs);
+      }
+    }
+
+    // Prepare ordering
+    String? orderBy;
+    if (query.orderBy != null) {
+      // Map field name to database column
+      // Most fields are stored in the JSON data, but we can handle special cases
+      String orderField;
+      switch (query.orderBy) {
+        case 'createdAt':
+          orderField = 'created_at';
+          break;
+        case 'updatedAt':
+          orderField = 'updated_at';
+          break;
+        default:
+          // For data stored in JSON, we can't directly order in SQL
+          // We'll need to use memory-based filtering instead
+          throw UnsupportedError(
+            'SQL ordering not supported for field: ${query.orderBy}',
+          );
+      }
+
+      orderBy = '$orderField ${query.descending ? 'DESC' : 'ASC'}';
+    }
+
+    // Execute the query
+    final result = await _db!.query(
+      _syncTable,
+      where: whereClause,
+      whereArgs: whereArgs,
+      orderBy: orderBy,
+      limit: query.limit,
+      offset: query.offset,
+    );
+
+    return result.map<T>((row) => _deserializeModel<T>(row)!).toList();
+  }
+
+  // Fallback method that uses in-memory filtering
+  Future<List<T>> _getItemsWithInMemoryFiltering<T extends SyncModel>(
+    String modelType,
+    Query query,
+  ) async {
+    // Get all items of this type first
+    final allItems = await getAll<T>(modelType);
+
+    // Apply the query filter
+    return query.applyToList<T>(allItems, (item, field) {
+      // Extract field value from the item
+      switch (field) {
+        case 'id':
+          return item.id;
+        case 'createdAt':
+          return item.createdAt.millisecondsSinceEpoch;
+        case 'updatedAt':
+          return item.updatedAt.millisecondsSinceEpoch;
+        case 'isSynced':
+          return item.isSynced;
+        default:
+          // For other fields, get from the JSON data
+          final json = item.toJson();
+          return json[field];
+      }
+    });
   }
 
   @override

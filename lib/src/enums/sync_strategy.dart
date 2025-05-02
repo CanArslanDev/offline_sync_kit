@@ -1,4 +1,5 @@
 /// Defines different strategies for handling delete operations in offline-first mode.
+/// Can be specified at both the global level (via SyncOptions) and the model level (via SyncModel).
 enum DeleteStrategy {
   /// Delete local data immediately before waiting for the remote response.
   /// Provides better user experience but may lead to inconsistency if remote operation fails.
@@ -10,6 +11,7 @@ enum DeleteStrategy {
 }
 
 /// Defines strategies for retrieving data with offline-first approach.
+/// Can be specified at both the global level (via SyncOptions) and the model level (via SyncModel).
 enum FetchStrategy {
   /// Returns local data immediately while fetching from remote in the background.
   /// Remote fetch happens on every call but is not awaited.
@@ -29,6 +31,7 @@ enum FetchStrategy {
 }
 
 /// Defines strategies for save operations (insert/update) in offline-first mode.
+/// Can be specified at both the global level (via SyncOptions) and the model level (via SyncModel).
 enum SaveStrategy {
   /// Saves data locally immediately before waiting for remote response.
   /// Better user experience but may lead to inconsistency if remote operation fails.

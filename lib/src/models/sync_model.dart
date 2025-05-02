@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:uuid/uuid.dart';
 import '../network/rest_requests.dart';
+import '../enums/sync_strategy.dart';
 
 /// Base abstract class for all models that need offline synchronization.
 ///
@@ -20,6 +21,9 @@ import '../network/rest_requests.dart';
 ///     super.updatedAt,
 ///     super.isSynced,
 ///     super.changedFields,
+///     super.fetchStrategy,
+///     super.saveStrategy,
+///     super.deleteStrategy,
 ///     required this.title,
 ///     this.isCompleted = false,
 ///   });
@@ -86,6 +90,18 @@ abstract class SyncModel extends Equatable {
   /// Flag indicating whether this model is marked for deletion
   final bool markedForDeletion;
 
+  /// Optional fetch strategy that can override the global fetch strategy
+  /// When null, the global strategy from SyncOptions will be used
+  final FetchStrategy? fetchStrategy;
+
+  /// Optional save strategy that can override the global save strategy
+  /// When null, the global strategy from SyncOptions will be used
+  final SaveStrategy? saveStrategy;
+
+  /// Optional delete strategy that can override the global delete strategy
+  /// When null, the global strategy from SyncOptions will be used
+  final DeleteStrategy? deleteStrategy;
+
   /// Creates a new SyncModel instance
   ///
   /// If [id] is not provided, a new UUID v4 will be generated
@@ -100,6 +116,9 @@ abstract class SyncModel extends Equatable {
     this.syncAttempts = 0,
     Set<String>? changedFields,
     this.markedForDeletion = false,
+    this.fetchStrategy,
+    this.saveStrategy,
+    this.deleteStrategy,
   }) : id = id ?? const Uuid().v4(),
        createdAt = createdAt ?? DateTime.now(),
        updatedAt = updatedAt ?? DateTime.now(),
@@ -167,6 +186,9 @@ abstract class SyncModel extends Equatable {
     int? syncAttempts,
     Set<String>? changedFields,
     bool? markedForDeletion,
+    FetchStrategy? fetchStrategy,
+    SaveStrategy? saveStrategy,
+    DeleteStrategy? deleteStrategy,
   });
 
   /// Marks this model as successfully synchronized with the server
@@ -218,5 +240,8 @@ abstract class SyncModel extends Equatable {
     syncAttempts,
     changedFields,
     markedForDeletion,
+    fetchStrategy,
+    saveStrategy,
+    deleteStrategy,
   ];
 }
