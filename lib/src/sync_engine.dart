@@ -1,16 +1,10 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 
-import 'enums/rest_method.dart';
 import 'enums/sync_strategy.dart';
-import 'models/connectivity_options.dart';
-import 'models/conflict_resolution_strategy.dart';
-import 'models/sync_event.dart';
 import 'models/sync_model.dart';
 import 'models/sync_options.dart';
 import 'models/sync_result.dart';
 import 'models/sync_status.dart';
-import 'network/rest_request.dart';
 import 'query/query.dart';
 import 'query/where_condition.dart';
 import 'repositories/sync_repository.dart';
