@@ -1,3 +1,15 @@
+## 1.5.1
+
+- Enhanced Query API with improved type safety and fluent interface
+  - Added method chaining with addWhere(), addOrderBy(), page(), limitTo(), offsetBy()
+  - Added SortDirection enum for sorting control
+  - Exported Query and WhereCondition classes in main package file
+- Implemented SQL and in-memory filtering with getItemsWithQuery() and getModelsWithQuery()
+- Added comprehensive Query API example documentation for various use cases
+- Fixed compatibility issues with older query methods
+- Translated all Turkish comments to English for better internationalization
+- Fixed deprecation warnings in SyncEngine with Query API integration
+
 ## 1.5.0
 
 - Enhanced Synchronization Strategies
@@ -22,9 +34,6 @@
   - Added Windows and Linux platform support via sqflite_common_ffi
   - Created storage_helper for platform-specific SQLite initialization
   - Ensured consistent behavior across all platforms (Android, iOS, macOS, Windows, Linux)
-- Mock API support for testing without a real server
-  - Added MockNetworkClient example for easier testing without a real API server
-  - Support for simulating API responses in offline environment
 - Internationalization improvements
   - English translation for all Turkish comments
   - Converted all comments to English for better international developer experience
@@ -37,6 +46,13 @@
 - Fixed issue with network error handling in example app
 - Improved error messages and debugging information
 - Enhanced example app with better offline capabilities
+
+- Added cross-platform support (Windows/Linux) via sqflite_common_ffi
+- Added mock API support for testing without real server
+- Improved internationalization with English translations
+- Fixed various bugs including API endpoint handling
+- Added model-level sync strategy configuration
+- Improved error handling
 
 ## 1.4.0
 

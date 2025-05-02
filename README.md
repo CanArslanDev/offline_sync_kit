@@ -61,7 +61,7 @@ The package is built around several key components:
   - **Model Factory Access**: Built-in access to registered model factories
   - **Flexible Bidirectional Sync**: Enhanced support for fetching and pulling data from the server
   - **Robust Error Handling**: Improved handling of unexpected API responses
-  - **Customizable Synchronization Strategies** (v1.5.0+):
+  - **Customizable Synchronization Strategies**
     - Fine-grained control over delete operations (optimistic or wait-for-remote)
     - Configurable data fetching strategies (background sync, remote-first, local with fallback, local-only)
     - Customizable save operations (optimistic-local or require-remote)
@@ -77,7 +77,7 @@ The package is built around several key components:
   - **Event Streaming**: Track and process synchronization events in real-time
   - **Compatible with REST APIs**: Use alongside or instead of traditional HTTP endpoints
 
-- **REST API Customization** (v1.6.0+):
+- **REST API Customization**
   - **Type-Safe Request Method**: Uses `RestMethod` enum instead of strings for method types
   - **Dynamic URL Parameters**: Replace placeholders like `{id}` in URLs with actual values
   - **Request Timeouts**: Configure custom timeout durations for specific request types
