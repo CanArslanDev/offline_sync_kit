@@ -1,3 +1,7 @@
+## 1.5.2
+- Fixed the issue where windows support was not visible on Pub.dev
+- Fixed wrong version number in readme.
+
 ## 1.5.1
 
 - Enhanced Query API with improved type safety and fluent interface
