@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 
 import 'enums/sync_strategy.dart';
 import 'models/sync_model.dart';
@@ -10,6 +12,7 @@ import 'query/where_condition.dart';
 import 'repositories/sync_repository.dart';
 import 'services/connectivity_service.dart';
 import 'services/storage_service.dart';
+import 'network/rest_request.dart';
 
 /// Core engine for handling the synchronization of models between local storage and remote server
 ///
@@ -560,6 +563,7 @@ class SyncEngine {
     Map<String, dynamic>? query,
     bool forceRefresh = false,
     FetchStrategy? modelFetchStrategy,
+    RestRequest? restConfig,
   }) async {
     registerModelType(modelType);
 
@@ -611,7 +615,11 @@ class SyncEngine {
     // Otherwise fetch from remote
     _setIsSyncing(true);
     try {
-      final result = await _repository.getItems<T>(modelType, query: query);
+      final result = await _repository.getItems<T>(
+        modelType,
+        query: query,
+        requestConfig: restConfig,
+      );
 
       if (result.isSuccessful) {
         // Only save remote items if not using remoteFirst or we got some items

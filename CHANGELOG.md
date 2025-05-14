@@ -1,3 +1,14 @@
+## 1.5.3
+
+- Added support for Appwrite integration with custom request configurations
+- Enhanced `getModelsWithQuery` with additional parameters:
+  - `forceLocalSyncFromRemote`: Force refreshing data from remote API
+  - `policy`: Control fetching strategy (local/remote preference)
+  - `restConfig`: Customize request with specific API requirements
+- Improved URL handling in repository methods to support services with non-standard endpoints
+- Added example documentation for complex API integrations
+- Fixed issue with endpoint configuration when using custom APIs
+
 ## 1.5.2
 - Fixed the issue where windows support was not visible on Pub.dev
 - Fixed wrong version number in readme.

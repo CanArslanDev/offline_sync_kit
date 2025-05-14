@@ -63,45 +63,48 @@ class SyncRepositoryImpl implements SyncRepository {
   /// Returns a [SyncResult] indicating success or failure
   @override
   Future<SyncResult> syncItem<T extends SyncModel>(T item) async {
+    final stopwatch = Stopwatch()..start();
+
     try {
-      // Skip already synced items
-      if (item.isSynced) {
-        return SyncResult.noChanges();
-      }
+      // Get custom request configuration if available
+      final config = _getRequestConfig(item, _getMethodForItem(item));
 
-      final stopwatch = Stopwatch()..start();
-      late T? result;
+      // Determine if this is a new item or an updated one
+      final isNew = item.id.isEmpty || _isNew(item);
 
-      // Use PUT for updates and POST for new items
-      if (item.id.isNotEmpty) {
-        // Get custom request configuration if available
-        final requestConfig = _getRequestConfig(item, RestMethod.put);
-
-        // Update existing item
-        result = await updateItem<T>(item, requestConfig: requestConfig);
+      // Create or update the item based on its status
+      T? syncedItem;
+      if (isNew) {
+        syncedItem = await createItem<T>(item, requestConfig: config);
       } else {
-        // Get custom request configuration if available
-        final requestConfig = _getRequestConfig(item, RestMethod.post);
-
-        // Create new item
-        result = await createItem<T>(item, requestConfig: requestConfig);
+        // For existing items, respect the item ID for proper update or delta sync
+        syncedItem = await updateItem<T>(item, requestConfig: config);
       }
 
-      if (result != null) {
-        // Update local storage with the synced item
-        await _storageService.save<T>(result);
-        return SyncResult.success(
-          timeTaken: stopwatch.elapsed,
+      if (syncedItem != null) {
+        // Synchronization was successful
+        return SyncResult(
+          status: SyncResultStatus.success,
           processedItems: 1,
+          timeTaken: stopwatch.elapsed,
+        );
+      } else {
+        // Synchronization failed
+        return SyncResult(
+          status: SyncResultStatus.failed,
+          failedItems: 1,
+          errorMessages: ['Failed to sync item with ID: ${item.id}'],
+          timeTaken: stopwatch.elapsed,
         );
       }
-
-      return SyncResult.failed(
-        error: 'Failed to sync item with server',
+    } catch (e) {
+      // Exception during synchronization
+      return SyncResult(
+        status: SyncResultStatus.failed,
+        failedItems: 1,
+        errorMessages: [e.toString()],
         timeTaken: stopwatch.elapsed,
       );
-    } catch (e) {
-      return SyncResult.failed(error: e.toString());
     }
   }
 
@@ -352,13 +355,19 @@ class SyncRepositoryImpl implements SyncRepository {
       // Use either custom config from parameter or from model
       final config = requestConfig ?? _getRequestConfig(item, RestMethod.post);
 
+      // If request config with URL is available, use that URL directly
+      final url =
+          config?.url != null && config!.url.isNotEmpty
+              ? config.url
+              : item.endpoint;
+
       final response = await _networkClient.post(
-        item.endpoint,
+        url,
         body: item.toJson(),
         requestConfig: config,
       );
 
-      if (response.isSuccessful || response.isCreated) {
+      if (response.isSuccessful) {
         return item.markAsSynced() as T;
       }
 
@@ -382,8 +391,14 @@ class SyncRepositoryImpl implements SyncRepository {
       // Use either custom config from parameter or from model
       final config = requestConfig ?? _getRequestConfig(item, RestMethod.put);
 
+      // If request config with URL is available, use that URL directly
+      final url =
+          config?.url != null && config!.url.isNotEmpty
+              ? config.url
+              : '${item.endpoint}/${item.id}';
+
       final response = await _networkClient.put(
-        '${item.endpoint}/${item.id}',
+        url,
         body: item.toJson(),
         requestConfig: config,
       );
@@ -408,8 +423,14 @@ class SyncRepositoryImpl implements SyncRepository {
       // Get custom request configuration if available
       final requestConfig = _getRequestConfig(item, RestMethod.delete);
 
+      // If request config with URL is available, use that URL directly
+      final url =
+          requestConfig?.url != null && requestConfig!.url.isNotEmpty
+              ? requestConfig.url
+              : '${item.endpoint}/${item.id}';
+
       final response = await _networkClient.delete(
-        '${item.endpoint}/${item.id}',
+        url,
         requestConfig: requestConfig,
       );
 
@@ -542,6 +563,7 @@ class SyncRepositoryImpl implements SyncRepository {
   Future<SyncResult<List<T>>> getItems<T extends SyncModel>(
     String modelType, {
     Map<String, dynamic>? query,
+    RestRequest? requestConfig,
   }) async {
     try {
       final stopwatch = Stopwatch()..start();
@@ -550,6 +572,7 @@ class SyncRepositoryImpl implements SyncRepository {
       final response = await _networkClient.get(
         modelType,
         queryParameters: query,
+        requestConfig: requestConfig,
       );
 
       if (!response.isSuccessful || response.data == null) {
@@ -675,5 +698,23 @@ class SyncRepositoryImpl implements SyncRepository {
     throw UnimplementedError(
       'Implement _createSyncedModelInstance based on your factory system',
     );
+  }
+
+  /// Determines the appropriate HTTP method for an item based on its sync state
+  ///
+  /// For new or unsaved items, this returns POST (create)
+  /// For existing items, this returns PUT (update)
+  RestMethod _getMethodForItem<T extends SyncModel>(T item) {
+    return _isNew(item) ? RestMethod.post : RestMethod.put;
+  }
+
+  /// Checks if an item should be treated as new (for create vs update operations)
+  ///
+  /// An item is considered new if:
+  /// - It has an empty ID
+  /// - It has never been synced before
+  /// - It doesn't exist in storage yet
+  bool _isNew<T extends SyncModel>(T item) {
+    return item.id.isEmpty || !item.isSynced;
   }
 }

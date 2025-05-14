@@ -2,6 +2,11 @@
 
 Offline Sync Kit is a comprehensive Flutter package designed to solve one of the most challenging aspects of mobile app development: reliable data synchronization between local device storage and remote APIs, especially in environments with intermittent connectivity.
 
+
+## Support me to maintain this plugin continously with a cup of coffee.
+
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](http://buymeacoffee.com/canarslandev)
+
 ## Overview
 
 This package provides a robust framework for storing different types of data locally while automatically managing their synchronization with a remote server. Whether your users are filling out forms, creating chat messages, updating records, or changing settings, Offline Sync Kit ensures that their data remains accessible offline and properly synchronized when connectivity is restored.
@@ -132,6 +137,24 @@ class Todo extends SyncModel {
 
   @override
   String get modelType => 'todo';
+  
+  // For Appwrite or custom APIs with specific request requirements
+  @override
+  RestRequests? get restRequests => RestRequests(
+    // Customize GET requests
+    get: RestRequest(
+      method: RestMethod.get,
+      url: 'custom/endpoint/path',
+      responseDataKey: 'documents', // Extract data from this key in response
+    ),
+    // Customize POST requests
+    post: RestRequest(
+      method: RestMethod.post,
+      url: 'custom/create/endpoint',
+      topLevelKey: 'document', // Wrap request body in this key
+      supplementalTopLevelData: {'collectionId': 'your-collection-id'}, // Add extra data
+    ),
+  );
 
   @override
   Map<String, dynamic> toJson() {
@@ -722,6 +745,36 @@ class TodoModel extends SyncModel {
   // Other required methods...
 }
 ```
+
+### 8. Advanced Retrieval with Custom Endpoints
+
+For more complex API integrations like Appwrite, Supabase or custom backends that require specific request formats:
+
+```dart
+// Define a custom REST request configuration for this specific query
+final restConfig = RestRequest(
+  method: RestMethod.get,
+  url: 'custom/endpoint/path',
+  responseDataKey: 'documents',  // Extract data from this key in the response
+  supplementalTopLevelData: {    // Add extra data to the request
+    'collectionId': 'todos-collection',
+    'databaseId': 'main-database'
+  },
+);
+
+// Use the advanced getModelsWithQuery with custom policies and configuration
+final todos = await OfflineSyncManager.instance.getModelsWithQuery<Todo>(
+  'todo', 
+  query: Query.where([
+    WhereCondition.exact('isCompleted', false),
+  ]),
+  forceLocalSyncFromRemote: true,  // Force refresh from the remote API
+  policy: FetchStrategy.remoteFirst,  // Use remote data first, fallback to local
+  restConfig: restConfig,  // Apply custom request configuration
+);
+```
+
+This approach is particularly useful when integrating with services like Appwrite, Firebase, or any API that requires specific request structures.
 
 ## Example App
 

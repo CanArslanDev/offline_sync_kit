@@ -10,12 +10,14 @@ import 'models/sync_result.dart';
 import 'models/sync_status.dart';
 import 'network/default_network_client.dart';
 import 'network/network_client.dart';
+import 'network/rest_request.dart';
 import 'repositories/sync_repository.dart';
 import 'repositories/sync_repository_impl.dart';
 import 'services/connectivity_service.dart';
 import 'services/storage_service.dart';
 import 'sync_engine.dart';
 import 'query/query.dart';
+import 'enums/sync_strategy.dart';
 
 /// Function type for creating model instances from JSON
 ///
@@ -500,7 +502,55 @@ class OfflineSyncManager {
   Future<List<T>> getModelsWithQuery<T extends SyncModel>(
     String modelType, {
     Query? query,
+    bool forceLocalSyncFromRemote = false,
+    FetchStrategy? policy,
+    RestRequest? restConfig,
   }) async {
+    if (forceLocalSyncFromRemote) {
+      // If force sync is requested, fetch from remote first
+      try {
+        // Convert Query to a map manually if needed
+        Map<String, dynamic>? queryParams;
+        if (query != null) {
+          // Create a simplified conversion from Query to Map
+          queryParams = {};
+
+          // Add where conditions if available
+          if (query.where != null && query.where!.isNotEmpty) {
+            // Just add basic key-value pairs from conditions
+            // This is simplified and might need to be expanded based on your query structure
+            for (var condition in query.where!) {
+              if (condition.field != null && condition.value != null) {
+                queryParams[condition.field!] = condition.value;
+              }
+            }
+          }
+
+          // Add other query parameters
+          if (query.orderBy != null) queryParams['orderBy'] = query.orderBy;
+          if (query.descending != null)
+            queryParams['descending'] = query.descending;
+          if (query.limit != null) queryParams['limit'] = query.limit;
+          if (query.offset != null) queryParams['offset'] = query.offset;
+        }
+
+        final result = await _syncEngine.fetchItems<T>(
+          modelType,
+          query: queryParams,
+          forceRefresh: true,
+          modelFetchStrategy: policy,
+          restConfig: restConfig,
+        );
+
+        if (result.isSuccessful && result.data != null) {
+          return result.data!;
+        }
+      } catch (e) {
+        debugPrint('Error fetching from remote: $e');
+        // Continue to fetch from local if remote fails
+      }
+    }
+
     return _storageService.getItemsWithQuery<T>(modelType, query: query);
   }
 

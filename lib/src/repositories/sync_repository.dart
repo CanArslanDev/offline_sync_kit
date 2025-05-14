@@ -82,10 +82,12 @@ abstract class SyncRepository {
   /// Parameters:
   /// - [modelType]: The model type to fetch
   /// - [query]: Optional query parameters to filter the items
+  /// - [requestConfig]: Optional custom request configuration
   ///
   /// Returns a [SyncResult] containing the items and operation details
   Future<SyncResult<List<T>>> getItems<T extends SyncModel>(
     String modelType, {
     Map<String, dynamic>? query,
+    RestRequest? requestConfig,
   });
 }
